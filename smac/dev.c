@@ -18,6 +18,7 @@
 #include <linux/delay.h>
 #include <linux/version.h>
 #include <linux/time.h>
+#include <linux/timekeeping.h>
 #include <linux/kthread.h>
 #ifdef SSV_MAC80211
 #include "ssv_mac80211.h"
@@ -3836,7 +3837,7 @@ out:
     }
     static void ssv6200_bss_info_changed(struct ieee80211_hw *hw,
                                          struct ieee80211_vif *vif, struct ieee80211_bss_conf *info,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,19,0)
                                          u64 changed) {
 #else
                                          u32 changed) {
@@ -5073,7 +5074,11 @@ out:
 #endif
 
     static u64 ssv6200_get_systime_us(void) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+        struct timespec64 ts;
+        ktime_get_boottime_ts64(&ts);
+        return ((u64)ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
         struct timespec ts;
         get_monotonic_boottime(&ts);
         return ((u64)ts.tv_sec * 1000000) + ts.tv_nsec / 1000;

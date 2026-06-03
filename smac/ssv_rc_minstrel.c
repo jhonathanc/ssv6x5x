@@ -317,8 +317,10 @@ static void ssv_minstrel_get_rate(void *priv, struct ieee80211_sta *sta,
     u64 delta;
     struct rc_setting *rc_setting = &sc->sh->cfg.rc_setting;
     int force_sample_pr;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,4,0)
     if (rate_control_send_low(sta, priv_sta, txrc))
         return;
+#endif
     if (sc->sh->cfg.auto_rate_enable == false) {
         ssv_minstrel_set_fix_data_rate(sc, minstrel_sta_priv, ar);
         return;
@@ -573,7 +575,11 @@ static void ssv_minstrel_free_sta(void *priv, struct ieee80211_sta *sta, void *p
     kfree(minstrel_sta_priv->ratelist);
     kfree(minstrel_sta_priv);
 }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
+static void *ssv_minstrel_alloc(struct ieee80211_hw *hw)
+#else
 static void *ssv_minstrel_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
+#endif
 {
     struct ssv_softc *sc = hw->priv;
     struct ssv_minstrel_priv *smp;
