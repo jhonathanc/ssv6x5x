@@ -22,6 +22,15 @@
 #include "ssv_ht_rc.h"
 #include "ssv_skb.h"
 #include <hal.h>
+
+#ifdef IEEE80211_MAX_AMPDU_BUF_HT
+#define SSV_IEEE80211_MAX_AMPDU_BUF IEEE80211_MAX_AMPDU_BUF_HT
+#elif defined(IEEE80211_MAX_AMPDU_BUF)
+#define SSV_IEEE80211_MAX_AMPDU_BUF IEEE80211_MAX_AMPDU_BUF
+#else
+#define SSV_IEEE80211_MAX_AMPDU_BUF 0x40
+#endif
+
 extern struct ieee80211_ops ssv6200_ops;
 #define BA_WAIT_TIMEOUT (100)
 #define AMPDU_TID_TO_SC(ampdu_tid) \
@@ -838,15 +847,15 @@ void ssv6200_ampdu_tx_operation (u16 tid, struct ieee80211_sta *sta,
     ssv_sta_priv->ampdu_tid[tid].sta = sta;
     ssv_sta_priv->ampdu_tid[tid].agg_num_max = MAX_AGGR_NUM;
 #if 1
-    if (buffer_size > IEEE80211_MAX_AMPDU_BUF) {
-        buffer_size = IEEE80211_MAX_AMPDU_BUF;
+    if (buffer_size > SSV_IEEE80211_MAX_AMPDU_BUF) {
+        buffer_size = SSV_IEEE80211_MAX_AMPDU_BUF;
     }
     printk("ssv6200_ampdu_tx_operation:buffer_size=%d\n", buffer_size);
     ssv_sta_priv->ampdu_tid[tid].ssv_baw_size = SSV_AMPDU_WINDOW_SIZE;
 #else
     ssv_sta_priv->ampdu_tid[tid].ssv_baw_size = IEEE80211_MIN_AMPDU_BUF << sta->ht_cap.ampdu_factor;
-    if(buffer_size > IEEE80211_MAX_AMPDU_BUF) {
-        buffer_size = IEEE80211_MAX_AMPDU_BUF;
+    if(buffer_size > SSV_IEEE80211_MAX_AMPDU_BUF) {
+        buffer_size = SSV_IEEE80211_MAX_AMPDU_BUF;
     }
     if(ssv_sta_priv->ampdu_tid[tid].ssv_baw_size > buffer_size) {
         ssv_sta_priv->ampdu_tid[tid].ssv_baw_size = buffer_size;
