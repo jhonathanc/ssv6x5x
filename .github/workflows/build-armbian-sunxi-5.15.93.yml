@@ -30,7 +30,6 @@ jobs:
 
       - name: Install build tools
         run: |
-          sudo dpkg --add-architecture armhf
           sudo apt-get update
           sudo apt-get install -y \
             bc \
@@ -82,17 +81,32 @@ jobs:
             fi
             cp "$headers_deb" kernel-debs/linux-headers-current-sunxi.deb
           else
-            curl -fsSL https://apt.armbian.com/armbian.key \
-              | sudo gpg --dearmor -o /usr/share/keyrings/armbian.gpg
-            echo "deb [arch=armhf signed-by=/usr/share/keyrings/armbian.gpg] https://apt.armbian.com jammy main" \
-              | sudo tee /etc/apt/sources.list.d/armbian.list
-            sudo apt-get update
-            apt-cache madison linux-headers-current-sunxi:armhf || true
-            if ! apt-get download "linux-headers-current-sunxi:armhf=$HEADERS_PACKAGE_VERSION"; then
-              echo "::error::Could not download linux-headers-current-sunxi:$HEADERS_PACKAGE_VERSION from the current Armbian APT index. Re-run the workflow with headers_deb_url pointing to the exact 5.15.93-sunxi headers .deb from your image or an archive mirror."
+            curl -fsSL https://apt.armbian.com/dists/jammy/main/binary-armhf/Packages.xz \
+              -o kernel-debs/armbian-packages.xz
+            headers_path="$(
+              xz -dc kernel-debs/armbian-packages.xz |
+                awk -v version="$HEADERS_PACKAGE_VERSION" '
+                  BEGIN { RS=""; FS="\n" }
+                  /^Package: linux-headers-current-sunxi$/ {
+                    pkgver="";
+                    filename="";
+                    for (i = 1; i <= NF; i++) {
+                      if ($i ~ /^Version: /) { pkgver = substr($i, 10) }
+                      if ($i ~ /^Filename: /) { filename = substr($i, 11) }
+                    }
+                    if (version == "" || pkgver == version) {
+                      print filename;
+                      exit;
+                    }
+                  }
+                '
+            )"
+            if [ -z "$headers_path" ]; then
+              echo "::error::Could not find linux-headers-current-sunxi:$HEADERS_PACKAGE_VERSION in the current Armbian APT index. Re-run the workflow with headers_installer_url or headers_deb_url pointing to the exact 5.15.93-sunxi headers."
               exit 1
             fi
-            mv linux-headers-current-sunxi_*_armhf*.deb kernel-debs/linux-headers-current-sunxi.deb
+            curl -fsSL "https://apt.armbian.com/${headers_path}" \
+              -o kernel-debs/linux-headers-current-sunxi.deb
           fi
 
           echo "HEADERS_DEB=$PWD/kernel-debs/linux-headers-current-sunxi.deb" >> "$GITHUB_ENV"
