@@ -17,6 +17,11 @@
 #define _SSV6200_H_
 #include <linux/device.h>
 #include <linux/interrupt.h>
+#include <linux/version.h>
+#include <linux/sched.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/types.h>
+#endif
 #ifdef SSV_MAC80211
 #include "ssv_mac80211.h"
 #else

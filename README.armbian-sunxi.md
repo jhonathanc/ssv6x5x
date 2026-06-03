@@ -31,6 +31,14 @@ The wrapper does not call old vendor power/card-detect symbols. On mainline Armb
 
 If the workflow cannot find `linux-headers-current-sunxi=23.02.2` in the live Armbian APT index, run it again with `headers_deb_url` pointing to the exact `.deb` for your `5.15.93-sunxi` image.
 
+After the headers artifact has been published, use the `Build Armbian sunxi 5.15.93 module` workflow for faster driver-only builds. Its default `headers_installer_url` points to:
+
+```text
+https://github.com/jhonathanc/ssv6x5x/releases/download/5.15.93/armbian-sunxi-5.15.93-sunxi-headers-installer.zip
+```
+
+That workflow extracts the `linux-headers` `.deb` from the release artifact and builds only `ssv6x5x.ko`, without rebuilding the Armbian kernel.
+
 If you cannot find the headers `.deb` anywhere, use the `Build Armbian sunxi kernel and driver` workflow. It rebuilds the Armbian sunxi kernel/headers package from `armbian/build`, verifies that the generated headers contain `/usr/src/linux-headers-5.15.93-sunxi`, and then builds this driver against that generated tree.
 
 The defaults are aimed at the `Armbian_23.02.2_Orangepipcplus_jammy_current_5.15.93_minimal.img` image:

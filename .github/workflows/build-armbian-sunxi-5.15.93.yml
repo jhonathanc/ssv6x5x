@@ -9,12 +9,16 @@ on:
         default: 5.15.93-sunxi
       headers_package_version:
         description: Armbian linux-headers-current-sunxi package version
-        required: true
+        required: false
         default: 23.02.2
       headers_deb_url:
         description: Optional direct URL to linux-headers-current-sunxi .deb
         required: false
         default: ""
+      headers_installer_url:
+        description: Optional URL to headers installer zip/tar.gz artifact
+        required: false
+        default: https://github.com/jhonathanc/ssv6x5x/releases/download/5.15.93/armbian-sunxi-5.15.93-sunxi-headers-installer.zip
 
 jobs:
   build:
@@ -40,11 +44,13 @@ jobs:
             kmod \
             libelf-dev \
             libssl-dev \
+            unzip \
             xz-utils
 
       - name: Download Armbian kernel headers
         env:
           HEADERS_DEB_URL: ${{ inputs.headers_deb_url }}
+          HEADERS_INSTALLER_URL: ${{ inputs.headers_installer_url }}
           HEADERS_PACKAGE_VERSION: ${{ inputs.headers_package_version }}
         run: |
           set -euo pipefail
@@ -52,6 +58,29 @@ jobs:
 
           if [ -n "$HEADERS_DEB_URL" ]; then
             curl -fsSL "$HEADERS_DEB_URL" -o kernel-debs/linux-headers-current-sunxi.deb
+          elif [ -n "$HEADERS_INSTALLER_URL" ]; then
+            curl -fsSL "$HEADERS_INSTALLER_URL" -o kernel-debs/headers-installer.download
+            mkdir -p kernel-debs/headers-installer
+
+            if unzip -tq kernel-debs/headers-installer.download >/dev/null 2>&1; then
+              unzip -q kernel-debs/headers-installer.download -d kernel-debs/headers-installer
+            else
+              tar -xaf kernel-debs/headers-installer.download -C kernel-debs/headers-installer
+            fi
+
+            find kernel-debs/headers-installer -type f \( -name "*.tar.gz" -o -name "*.tgz" -o -name "*.tar.xz" \) -print0 |
+              while IFS= read -r -d '' archive; do
+                mkdir -p "kernel-debs/headers-installer/nested"
+                tar -xaf "$archive" -C "kernel-debs/headers-installer/nested"
+              done
+
+            headers_deb="$(find kernel-debs/headers-installer -type f -name "linux-headers-*.deb" | sort | tail -n1)"
+            if [ -z "$headers_deb" ]; then
+              echo "::error::Could not find linux-headers-*.deb inside headers_installer_url."
+              find kernel-debs/headers-installer -maxdepth 5 -type f | sort
+              exit 1
+            fi
+            cp "$headers_deb" kernel-debs/linux-headers-current-sunxi.deb
           else
             curl -fsSL https://apt.armbian.com/armbian.key \
               | sudo gpg --dearmor -o /usr/share/keyrings/armbian.gpg
