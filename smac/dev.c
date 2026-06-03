@@ -3296,8 +3296,13 @@ tx_mpdu:
         }
         return 0;
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
+    void ssv6xxx_house_keeping(struct timer_list *timer) {
+        struct ssv_softc *sc = from_timer(sc, timer, house_keeping);
+#else
     void ssv6xxx_house_keeping(unsigned long argv) {
         struct ssv_softc *sc = (struct ssv_softc *)argv;
+#endif
         if (!sc->mac80211_dev_started ||
             (sc->sc_flags & SC_OP_HW_RESET) ||
             (sc->sc_flags & SC_OP_BLOCK_CNTL))
@@ -3831,7 +3836,11 @@ out:
     }
     static void ssv6200_bss_info_changed(struct ieee80211_hw *hw,
                                          struct ieee80211_vif *vif, struct ieee80211_bss_conf *info,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+                                         u64 changed) {
+#else
                                          u32 changed) {
+#endif
         struct ssv_vif_priv_data *priv_vif = (struct ssv_vif_priv_data *)vif->drv_priv;
         struct ssv_softc *sc = hw->priv;
 #ifdef CONFIG_P2P_NOA

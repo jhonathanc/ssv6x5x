@@ -21,6 +21,15 @@
 #include "ssv_rc_minstrel.h"
 #include <hal.h>
 #include <linux_80211.h>
+#ifndef S_IRUGO
+#define S_IRUGO 0444
+#endif
+#ifndef S_IWUGO
+#define S_IWUGO 0222
+#endif
+#ifndef S_IXUGO
+#define S_IXUGO 0111
+#endif
 #define SSV_MINSTREL_ACK_LEN 39
 #define SAMPLE_COLUMNS 10
 #define SAMPLE_TBL(_sta_priv,_idx,_col) \

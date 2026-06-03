@@ -15,14 +15,18 @@
 
 #include <linux/version.h>
 #include <linux/etherdevice.h>
+#include <linux/fs.h>
 #include <ssv6200.h>
 #include "efuse.h"
 #include <hal.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+#include <asm/segment.h>
 mm_segment_t oldfs;
+#endif
 struct file *openFile(char *path,int flag,int mode)
 {
     struct file *fp=NULL;
-    fp=filp_open(path, flag, 0);
+    fp=filp_open(path, flag, mode);
     if(IS_ERR(fp))
         return NULL;
     else
@@ -30,10 +34,25 @@ struct file *openFile(char *path,int flag,int mode)
 }
 int readFile(struct file *fp,char *buf,int readlen)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
+    return kernel_read(fp, buf, readlen, &fp->f_pos);
+#else
     if (fp->f_op && fp->f_op->read)
         return fp->f_op->read(fp,buf,readlen, &fp->f_pos);
     else
         return -1;
+#endif
+}
+int writeFile(struct file *fp,char *buf,int writelen)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
+    return kernel_write(fp, buf, writelen, &fp->f_pos);
+#else
+    if (fp->f_op && fp->f_op->write)
+        return fp->f_op->write(fp,buf,writelen, &fp->f_pos);
+    else
+        return -1;
+#endif
 }
 int closeFile(struct file *fp)
 {
@@ -42,8 +61,16 @@ int closeFile(struct file *fp)
 }
 void initKernelEnv(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
     oldfs = get_fs();
     set_fs(KERNEL_DS);
+#endif
+}
+void deinitKernelEnv(void)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+    set_fs(oldfs);
+#endif
 }
 void parseMac(char* mac, u_int8_t addr[])
 {
@@ -67,7 +94,7 @@ static int readfile_mac(u8 *path,u8 *mac_addr)
             parseMac(buf,(uint8_t *)mac_addr);
         } else
             printk("read file error %d=[%s]\n",ret,path);
-        set_fs(oldfs);
+        deinitKernelEnv();
         closeFile(fp);
     } else
         printk("Read open File fail[%s]!!!! \n",path);
@@ -78,17 +105,14 @@ static int write_mac_to_file(u8 *mac_path,u8 *mac_addr)
     char buf[128];
     struct file *fp=NULL;
     int ret=0,len;
-    mm_segment_t old_fs;
     fp=openFile(mac_path,O_WRONLY|O_CREAT,0640);
     if (fp!=NULL) {
         initKernelEnv();
         memset(buf,0,128);
         sprintf(buf,"%x:%x:%x:%x:%x:%x",mac_addr[0],mac_addr[1],mac_addr[2],mac_addr[3],mac_addr[4],mac_addr[5]);
         len = strlen(buf)+1;
-        old_fs = get_fs();
-        set_fs(KERNEL_DS);
-        fp->f_op->write(fp, (char *)buf, len, &fp->f_pos);
-        set_fs(old_fs);
+        ret = writeFile(fp, buf, len);
+        deinitKernelEnv();
         closeFile(fp);
     } else
         printk("Write open File fail!!!![%s] \n",mac_path);

@@ -14,7 +14,9 @@ ccflags-y += -D__CHECK_ENDIAN__
 ###########################################################################
 # Compiler options                                                        #
 ###########################################################################
+ifeq ($(SSV_WERROR),1)
 ccflags-y += -Werror
+endif
 
 # Enable -g to help debug. Deassembly from .o to .S would help to track to 
 # the problomatic line from call stack dump.

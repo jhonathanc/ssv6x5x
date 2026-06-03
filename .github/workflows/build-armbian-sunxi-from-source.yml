@@ -1,0 +1,228 @@
+name: Build Armbian sunxi kernel and driver
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_release:
+        description: Kernel release that must match the running board
+        required: true
+        default: 5.15.93-sunxi
+      armbian_build_ref:
+        description: armbian/build git ref to checkout
+        required: true
+        default: 1a8daf0
+      armbian_lib_tag:
+        description: Armbian LIB_TAG for old build framework releases
+        required: false
+        default: ""
+      board:
+        description: Armbian board name used by the bootable image
+        required: true
+        default: orangepipcplus
+      kernel_branch:
+        description: Armbian kernel branch
+        required: true
+        default: current
+      release:
+        description: Debian/Ubuntu userspace release used for package metadata
+        required: true
+        default: jammy
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out driver sources
+        uses: actions/checkout@v4
+        with:
+          path: driver
+
+      - name: Check out Armbian build framework
+        uses: actions/checkout@v4
+        with:
+          repository: armbian/build
+          path: armbian-build
+          fetch-depth: 0
+
+      - name: Select Armbian build ref
+        working-directory: armbian-build
+        env:
+          ARMBIAN_BUILD_REF: ${{ inputs.armbian_build_ref }}
+        run: |
+          set -euo pipefail
+          git checkout --detach "$ARMBIAN_BUILD_REF"
+          git rev-parse HEAD
+
+      - name: Free runner disk space
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Build Armbian kernel and headers
+        working-directory: armbian-build
+        env:
+          BOARD: ${{ inputs.board }}
+          KERNEL_BRANCH: ${{ inputs.kernel_branch }}
+          RELEASE: ${{ inputs.release }}
+          LIB_TAG: ${{ inputs.armbian_lib_tag }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            BOARD="$BOARD"
+            BRANCH="$KERNEL_BRANCH"
+            RELEASE="$RELEASE"
+            KERNEL_CONFIGURE=no
+            INSTALL_HEADERS=yes
+            USE_CCACHE=no
+            KEEP_KERNEL_CONFIG=no
+            DEB_COMPRESS=xz
+          )
+
+          if [ -n "$LIB_TAG" ]; then
+            args+=(LIB_TAG="$LIB_TAG")
+          fi
+
+          if ! ./compile.sh kernel "${args[@]}"; then
+            ./compile.sh "${args[@]}" BUILD_ONLY=kernel
+          fi
+
+      - name: Extract generated Armbian headers
+        env:
+          KERNEL_RELEASE: ${{ inputs.kernel_release }}
+        run: |
+          set -euo pipefail
+          headers_deb="$(find "$PWD/armbian-build/output/debs" -type f -name "linux-headers-*sunxi*.deb" | sort | tail -n1)"
+          if [ -z "$headers_deb" ]; then
+            echo "::error::Armbian build finished, but no linux-headers-*sunxi*.deb was found."
+            find "$PWD/armbian-build/output" -maxdepth 4 -type f | sort
+            exit 1
+          fi
+
+          echo "Using generated headers package: $headers_deb"
+          mkdir -p driver/kernel-headers
+          dpkg-deb -x "$headers_deb" driver/kernel-headers
+
+          headers_dir="$(find "$PWD/driver/kernel-headers/usr/src" -maxdepth 1 -type d -name "linux-headers-$KERNEL_RELEASE*" | head -n1)"
+          if [ -z "$headers_dir" ]; then
+            echo "::error::Generated headers do not match $KERNEL_RELEASE. The Armbian ref/board/branch built a different kernel."
+            find "$PWD/driver/kernel-headers/usr/src" -maxdepth 1 -type d | sort
+            exit 1
+          fi
+
+          echo "KSRC=$headers_dir" >> "$GITHUB_ENV"
+          echo "HEADERS_DEB=$headers_deb" >> "$GITHUB_ENV"
+
+      - name: Select H3 mainline driver config
+        working-directory: driver
+        run: |
+          set -euo pipefail
+          cp platforms/h3-mainline.cfg ssv6x5x.cfg
+          cp platforms/h3-mainline-wifi.cfg ssv6x5x-wifi.cfg
+          cp platforms/h3-mainline-generic-wlan.c ssv6x5x-generic-wlan.c
+          chmod +x parser-conf.sh
+
+      - name: Install module build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf kmod
+
+      - name: Build driver module
+        working-directory: driver
+        run: |
+          set -euo pipefail
+          make -j"$(nproc)" \
+            ARCH=arm \
+            CROSS_COMPILE=arm-linux-gnueabihf- \
+            KSRC="$KSRC" \
+            CONFIG_SSV6X5X=m \
+            modules
+          arm-linux-gnueabihf-strip --strip-unneeded ssv6x5x.ko
+          modinfo ssv6x5x.ko
+
+      - name: Package artifact
+        env:
+          KERNEL_RELEASE: ${{ inputs.kernel_release }}
+        run: |
+          set -euo pipefail
+          artifact="ssv6x5x-armbian-${KERNEL_RELEASE}-from-source"
+          mkdir -p "$artifact/lib/modules/${KERNEL_RELEASE}/extra"
+          mkdir -p "$artifact/lib/firmware"
+          mkdir -p "$artifact/debs"
+
+          install -m 0644 driver/ssv6x5x.ko "$artifact/lib/modules/${KERNEL_RELEASE}/extra/ssv6x5x.ko"
+          install -m 0644 driver/image/ssv6x5x-sw.bin "$artifact/lib/firmware/ssv6x5x-sw.bin"
+          install -m 0644 driver/ssv6x5x-wifi.cfg "$artifact/lib/firmware/ssv6x5x-wifi.cfg"
+          install -m 0644 driver/README.armbian-sunxi.md "$artifact/README.armbian-sunxi.md"
+          install -m 0644 "$HEADERS_DEB" "$artifact/debs/"
+
+          tar -czf "${artifact}.tar.gz" "$artifact"
+          sha256sum "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256"
+
+      - name: Package headers installer
+        env:
+          KERNEL_RELEASE: ${{ inputs.kernel_release }}
+        run: |
+          set -euo pipefail
+          artifact="armbian-sunxi-${KERNEL_RELEASE}-headers-installer"
+          mkdir -p "$artifact/debs"
+
+          install -m 0644 "$HEADERS_DEB" "$artifact/debs/"
+          cat > "$artifact/install-headers.sh" <<'EOF'
+          #!/bin/sh
+          set -eu
+
+          kernel_release="${KERNEL_RELEASE:-5.15.93-sunxi}"
+          script_dir="$(cd "$(dirname "$0")" && pwd)"
+          deb="$(find "$script_dir/debs" -maxdepth 1 -type f -name 'linux-headers-*.deb' | sort | tail -n 1)"
+
+          if [ -z "$deb" ]; then
+            echo "No linux-headers .deb found in $script_dir/debs" >&2
+            exit 1
+          fi
+
+          if [ "$(uname -r)" != "$kernel_release" ] && [ "${FORCE:-0}" != "1" ]; then
+            echo "Running kernel is $(uname -r), expected $kernel_release." >&2
+            echo "Set FORCE=1 to install anyway." >&2
+            exit 1
+          fi
+
+          sudo_cmd=""
+          if [ "$(id -u)" -ne 0 ]; then
+            sudo_cmd="sudo"
+          fi
+
+          $sudo_cmd dpkg -i "$deb" || $sudo_cmd apt-get -f install -y
+
+          if ls -d "/usr/src/linux-headers-$kernel_release"* >/dev/null 2>&1; then
+            echo "Installed headers for $kernel_release."
+          else
+            echo "Installed the package, but /usr/src/linux-headers-$kernel_release was not found." >&2
+            exit 1
+          fi
+          EOF
+          sed -i 's/^          //' "$artifact/install-headers.sh"
+          chmod +x "$artifact/install-headers.sh"
+          tar -czf "${artifact}.tar.gz" "$artifact"
+          sha256sum "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256"
+
+      - name: Upload module package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source
+          path: |
+            ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source.tar.gz
+            ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source.tar.gz.sha256
+          if-no-files-found: error
+
+      - name: Upload headers installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: armbian-sunxi-${{ inputs.kernel_release }}-headers-installer
+          path: |
+            armbian-sunxi-${{ inputs.kernel_release }}-headers-installer.tar.gz
+            armbian-sunxi-${{ inputs.kernel_release }}-headers-installer.tar.gz.sha256
+          if-no-files-found: error

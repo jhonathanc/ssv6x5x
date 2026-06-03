@@ -12,6 +12,16 @@
 #ifndef SSV_SUPPORT_SSV6006
 #define SSV_SUPPORT_SSV6006
 #endif
+
+#ifndef S_IRUGO
+#define S_IRUGO 0444
+#endif
+#ifndef S_IWUGO
+#define S_IWUGO 0222
+#endif
+#ifndef S_IXUGO
+#define S_IXUGO 0111
+#endif
 #ifndef CONFIG_SSV_CABRIO_E
 #define CONFIG_SSV_CABRIO_E
 #endif

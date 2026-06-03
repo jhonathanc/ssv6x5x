@@ -747,10 +747,14 @@ static int tu_ssv6xxx_init_softc(struct ssv_softc *sc)
     sc->cmd_data.dbg_log.size = 0;
     sc->cmd_data.dbg_log.totalsize = 0;
     sc->cmd_data.dbg_log.data = NULL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
+    timer_setup(&sc->house_keeping, ssv6xxx_house_keeping, 0);
+#else
     init_timer(&sc->house_keeping);
     sc->house_keeping.expires = jiffies + msecs_to_jiffies(HOUSE_KEEPING_TIMEOUT);
     sc->house_keeping.function = ssv6xxx_house_keeping;
     sc->house_keeping.data = (unsigned long)sc;
+#endif
     sc->house_keeping_wq= create_singlethread_workqueue("ssv6xxx_house_keeping_wq");
     INIT_WORK(&sc->rx_stuck_work, ssv6xxx_rx_stuck_process);
     INIT_WORK(&sc->mib_edca_work, ssv6xxx_mib_edca_process);
