@@ -10,7 +10,7 @@ The GitHub Actions artifact contains:
 - `lib/firmware/ssv6x5x-sw.bin`
 - `lib/firmware/ssv6x5x-wifi.cfg`
 
-The workflows also upload a separate `armbian-sunxi-5.15.93-sunxi-headers-installer` artifact. It contains the generated or downloaded `linux-headers` `.deb` and an installer script:
+The workflows also upload a separate `armbian-sunxi-5.15.93-sunxi-headers-installer` artifact. It contains the generated or downloaded `linux-headers` `.deb` and an installer script. In the from-source workflow, this artifact is uploaded immediately after the headers are generated and validated, before the driver module build starts.
 
 ```sh
 tar -xzf armbian-sunxi-5.15.93-sunxi-headers-installer.tar.gz

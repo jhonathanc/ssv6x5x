@@ -119,52 +119,6 @@ jobs:
           echo "KSRC=$headers_dir" >> "$GITHUB_ENV"
           echo "HEADERS_DEB=$headers_deb" >> "$GITHUB_ENV"
 
-      - name: Select H3 mainline driver config
-        working-directory: driver
-        run: |
-          set -euo pipefail
-          cp platforms/h3-mainline.cfg ssv6x5x.cfg
-          cp platforms/h3-mainline-wifi.cfg ssv6x5x-wifi.cfg
-          cp platforms/h3-mainline-generic-wlan.c ssv6x5x-generic-wlan.c
-          chmod +x parser-conf.sh
-
-      - name: Install module build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf kmod
-
-      - name: Build driver module
-        working-directory: driver
-        run: |
-          set -euo pipefail
-          make -j"$(nproc)" \
-            ARCH=arm \
-            CROSS_COMPILE=arm-linux-gnueabihf- \
-            KSRC="$KSRC" \
-            CONFIG_SSV6X5X=m \
-            modules
-          arm-linux-gnueabihf-strip --strip-unneeded ssv6x5x.ko
-          modinfo ssv6x5x.ko
-
-      - name: Package artifact
-        env:
-          KERNEL_RELEASE: ${{ inputs.kernel_release }}
-        run: |
-          set -euo pipefail
-          artifact="ssv6x5x-armbian-${KERNEL_RELEASE}-from-source"
-          mkdir -p "$artifact/lib/modules/${KERNEL_RELEASE}/extra"
-          mkdir -p "$artifact/lib/firmware"
-          mkdir -p "$artifact/debs"
-
-          install -m 0644 driver/ssv6x5x.ko "$artifact/lib/modules/${KERNEL_RELEASE}/extra/ssv6x5x.ko"
-          install -m 0644 driver/image/ssv6x5x-sw.bin "$artifact/lib/firmware/ssv6x5x-sw.bin"
-          install -m 0644 driver/ssv6x5x-wifi.cfg "$artifact/lib/firmware/ssv6x5x-wifi.cfg"
-          install -m 0644 driver/README.armbian-sunxi.md "$artifact/README.armbian-sunxi.md"
-          install -m 0644 "$HEADERS_DEB" "$artifact/debs/"
-
-          tar -czf "${artifact}.tar.gz" "$artifact"
-          sha256sum "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256"
-
       - name: Package headers installer
         env:
           KERNEL_RELEASE: ${{ inputs.kernel_release }}
@@ -212,15 +166,6 @@ jobs:
           tar -czf "${artifact}.tar.gz" "$artifact"
           sha256sum "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256"
 
-      - name: Upload module package
-        uses: actions/upload-artifact@v4
-        with:
-          name: ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source
-          path: |
-            ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source.tar.gz
-            ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source.tar.gz.sha256
-          if-no-files-found: error
-
       - name: Upload headers installer
         uses: actions/upload-artifact@v4
         with:
@@ -228,4 +173,76 @@ jobs:
           path: |
             armbian-sunxi-${{ inputs.kernel_release }}-headers-installer.tar.gz
             armbian-sunxi-${{ inputs.kernel_release }}-headers-installer.tar.gz.sha256
+          if-no-files-found: error
+
+      - name: Select H3 mainline driver config
+        working-directory: driver
+        run: |
+          set -euo pipefail
+          cp platforms/h3-mainline.cfg ssv6x5x.cfg
+          cp platforms/h3-mainline-wifi.cfg ssv6x5x-wifi.cfg
+          cp platforms/h3-mainline-generic-wlan.c ssv6x5x-generic-wlan.c
+          chmod +x parser-conf.sh
+
+      - name: Install module build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf kmod
+
+      - name: Select module compiler
+        run: |
+          set -euo pipefail
+          toolchain_gcc=""
+          if [ -d "$PWD/armbian-build/cache/toolchains" ]; then
+            toolchain_gcc="$(find "$PWD/armbian-build/cache/toolchains" -type f -path "*/bin/arm-linux-gnueabihf-gcc" -print -quit)"
+          fi
+          if [ -n "$toolchain_gcc" ]; then
+            module_cross_compile="$(dirname "$toolchain_gcc")/arm-linux-gnueabihf-"
+          else
+            module_cross_compile="arm-linux-gnueabihf-"
+          fi
+
+          echo "MODULE_CROSS_COMPILE=$module_cross_compile" >> "$GITHUB_ENV"
+          "${module_cross_compile}gcc" --version | head -n1
+
+      - name: Build driver module
+        working-directory: driver
+        run: |
+          set -euo pipefail
+          make -j"$(nproc)" \
+            ARCH=arm \
+            CROSS_COMPILE="$MODULE_CROSS_COMPILE" \
+            KBUILD_TOP="$PWD" \
+            KSRC="$KSRC" \
+            CONFIG_SSV6X5X=m \
+            modules
+          "${MODULE_CROSS_COMPILE}strip" --strip-unneeded ssv6x5x.ko
+          modinfo ssv6x5x.ko
+
+      - name: Package artifact
+        env:
+          KERNEL_RELEASE: ${{ inputs.kernel_release }}
+        run: |
+          set -euo pipefail
+          artifact="ssv6x5x-armbian-${KERNEL_RELEASE}-from-source"
+          mkdir -p "$artifact/lib/modules/${KERNEL_RELEASE}/extra"
+          mkdir -p "$artifact/lib/firmware"
+          mkdir -p "$artifact/debs"
+
+          install -m 0644 driver/ssv6x5x.ko "$artifact/lib/modules/${KERNEL_RELEASE}/extra/ssv6x5x.ko"
+          install -m 0644 driver/image/ssv6x5x-sw.bin "$artifact/lib/firmware/ssv6x5x-sw.bin"
+          install -m 0644 driver/ssv6x5x-wifi.cfg "$artifact/lib/firmware/ssv6x5x-wifi.cfg"
+          install -m 0644 driver/README.armbian-sunxi.md "$artifact/README.armbian-sunxi.md"
+          install -m 0644 "$HEADERS_DEB" "$artifact/debs/"
+
+          tar -czf "${artifact}.tar.gz" "$artifact"
+          sha256sum "${artifact}.tar.gz" > "${artifact}.tar.gz.sha256"
+
+      - name: Upload module package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source
+          path: |
+            ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source.tar.gz
+            ssv6x5x-armbian-${{ inputs.kernel_release }}-from-source.tar.gz.sha256
           if-no-files-found: error

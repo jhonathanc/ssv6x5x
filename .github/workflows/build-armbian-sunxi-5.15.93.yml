@@ -103,6 +103,7 @@ jobs:
           make -j"$(nproc)" \
             ARCH=arm \
             CROSS_COMPILE=arm-linux-gnueabihf- \
+            KBUILD_TOP="$PWD" \
             KSRC="$KSRC" \
             CONFIG_SSV6X5X=m \
             modules
