@@ -3045,7 +3045,7 @@ tx_mpdu:
                             spin_lock_irqsave(&sc->crypt_st_lock, flags);
                             dev_err(sc->dev, "Set crypto task %d priority to %d.\n",
                                     this_task->pid, sp.sched_priority);
-                            sched_setscheduler(this_task, this_task->policy, &sp);
+                            ssv_sched_setscheduler(this_task, this_task->policy, &sp);
                             cur_prio = ori_prio;
                             spin_unlock_irqrestore(&sc->crypt_st_lock, flags);
                         }
@@ -3079,7 +3079,7 @@ tx_mpdu:
                         spin_lock_irqsave(&sc->crypt_st_lock, flags);
                         if (cur_prio != min_prio) {
                             struct sched_param sp = { .sched_priority = min_prio };
-                            sched_setscheduler(this_task, this_task->policy, &sp);
+                            ssv_sched_setscheduler(this_task, this_task->policy, &sp);
                             cur_prio = min_prio;
                             dev_err(sc->dev, "Set crypto task %d priority to %d.\n",
                                     this_task->pid, sp.sched_priority);

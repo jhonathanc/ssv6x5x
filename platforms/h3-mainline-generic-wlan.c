@@ -82,8 +82,6 @@ static __exit void tu_generic_wifi_exit_module(void)
 #endif
 }
 
-EXPORT_SYMBOL(tu_generic_wifi_init_module);
-EXPORT_SYMBOL(tu_generic_wifi_exit_module);
 module_init(tu_generic_wifi_init_module);
 module_exit(tu_generic_wifi_exit_module);
 

@@ -53,7 +53,7 @@
 MODULE_AUTHOR("iComm-semi, Ltd");
 MODULE_DESCRIPTION("Shared library for SSV wireless LAN cards.");
 MODULE_LICENSE("Dual BSD/GPL");
-static char *tu_stacfgpath = "/lib/firmware/ssv6x5x-wifi.cfg";
+char *tu_stacfgpath = "/lib/firmware/ssv6x5x-wifi.cfg";
 EXPORT_SYMBOL(tu_stacfgpath);
 module_param(tu_stacfgpath, charp, 0000);
 MODULE_PARM_DESC(tu_stacfgpath, "Get path of sta cfg");

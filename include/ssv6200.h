@@ -111,20 +111,29 @@ struct txResourceControl {
 };
 #define SSV_SKB_info_size (sizeof(struct SKB_info_st))
 #include "ssv_cfg.h"
+static inline int ssv_sched_setscheduler(struct task_struct *task, int policy,
+        const struct sched_param *param)
+{
+#ifdef SSV_DISABLE_SCHED_SETSCHEDULER
+    return 0;
+#else
+    return sched_setscheduler(task, policy, param);
+#endif
+}
 static inline void txrxboost_init(void)
 {
     struct sched_param param = { .sched_priority = 0 };
-    sched_setscheduler(current, SCHED_NORMAL, &param);
+    ssv_sched_setscheduler(current, SCHED_NORMAL, &param);
 }
 static inline void txrxboost_change(u32 tx_frame_qlen, u32 low_threshold, u32 high_threshold, u32 prio)
 {
     struct sched_param param;
     if (tx_frame_qlen > high_threshold) {
         param.sched_priority = (int)prio;
-        sched_setscheduler(current, (prio != 0)?SCHED_RR:SCHED_NORMAL, &param);
+        ssv_sched_setscheduler(current, (prio != 0)?SCHED_RR:SCHED_NORMAL, &param);
     } else if (tx_frame_qlen < low_threshold) {
         param.sched_priority = 0;
-        sched_setscheduler(current, SCHED_NORMAL, &param);
+        ssv_sched_setscheduler(current, SCHED_NORMAL, &param);
     }
 }
 #endif
