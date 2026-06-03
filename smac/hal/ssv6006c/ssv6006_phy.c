@@ -1095,19 +1095,35 @@ void ssv6006_rc_mac80211_rate_idx(struct ssv_softc *sc,
 {
     if (((hw_rate_idx & SSV6006RC_PHY_MODE_MSK) >>
          SSV6006RC_PHY_MODE_SFT)== SSV6006RC_N_MODE) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+        rxs->encoding = RX_ENC_HT;
+#else
         rxs->flag |= RX_FLAG_HT;
+#endif
         if (((hw_rate_idx & SSV6006RC_20_40_MSK) >>
              SSV6006RC_20_40_SFT) == SSV6006RC_HT40) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+            rxs->bw = RATE_INFO_BW_40;
+#else
             rxs->flag |= RX_FLAG_40MHZ;
+#endif
         }
         if (((hw_rate_idx & SSV6006RC_LONG_SHORT_MSK) >>
              SSV6006RC_LONG_SHORT_SFT) == SSV6006RC_SHORT) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+            rxs->enc_flags |= RX_ENC_FLAG_SHORT_GI;
+#else
             rxs->flag |= RX_FLAG_SHORT_GI;
+#endif
         }
     } else {
         if (((hw_rate_idx & SSV6006RC_LONG_SHORT_MSK) >>
              SSV6006RC_LONG_SHORT_SFT) == SSV6006RC_SHORT) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+            rxs->enc_flags |= RX_ENC_FLAG_SHORTPRE;
+#else
             rxs->flag |= RX_FLAG_SHORTPRE;
+#endif
         }
     }
     rxs->rate_idx = (hw_rate_idx & SSV6006RC_RATE_MSK) >>

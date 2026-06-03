@@ -1353,12 +1353,26 @@ void ssv6xxx_rc_mac80211_rate_idx(struct ssv_softc *sc,
            hw_rate_idx < 0);
     rc_rate = &ssv_rc->rc_table[hw_rate_idx];
     if (rc_rate->rc_flags & RC_FLAG_HT) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+        rxs->encoding = RX_ENC_HT;
+#else
         rxs->flag |= RX_FLAG_HT;
-        if (rc_rate->rc_flags & RC_FLAG_HT_SGI)
+#endif
+        if (rc_rate->rc_flags & RC_FLAG_HT_SGI) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+            rxs->enc_flags |= RX_ENC_FLAG_SHORT_GI;
+#else
             rxs->flag |= RX_FLAG_SHORT_GI;
+#endif
+        }
     } else {
-        if (rc_rate->rc_flags & RC_FLAG_SHORT_PREAMBLE)
+        if (rc_rate->rc_flags & RC_FLAG_SHORT_PREAMBLE) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+            rxs->enc_flags |= RX_ENC_FLAG_SHORTPRE;
+#else
             rxs->flag |= RX_FLAG_SHORTPRE;
+#endif
+        }
     }
     rxs->rate_idx = rc_rate->dot11_rate_idx;
 }

@@ -15,6 +15,7 @@
 
 #ifndef _HCTRL_H_
 #define _HCTRL_H_
+#include <linux/interrupt.h>
 #define SSV6XXX_HCI_OP_INVALID 0x00000001
 #define SSV6XXX_HCI_OP_IFERR 0x00000002
 #define SSV6XXX_INT_RX 0x00000001
