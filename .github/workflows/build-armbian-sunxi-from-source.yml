@@ -70,6 +70,8 @@ jobs:
           LIB_TAG: ${{ inputs.armbian_lib_tag }}
         run: |
           set -euo pipefail
+          mkdir -p cache/.aria2
+          touch cache/.aria2/server_stats
 
           args=(
             BOARD="$BOARD"
@@ -77,6 +79,7 @@ jobs:
             RELEASE="$RELEASE"
             KERNEL_CONFIGURE=no
             INSTALL_HEADERS=yes
+            EXTRAWIFI=no
             USE_CCACHE=no
             KEEP_KERNEL_CONFIG=no
             DEB_COMPRESS=xz
@@ -86,8 +89,8 @@ jobs:
             args+=(LIB_TAG="$LIB_TAG")
           fi
 
-          if ! ./compile.sh kernel "${args[@]}"; then
-            ./compile.sh "${args[@]}" BUILD_ONLY=kernel
+          if ! ./compile.sh "${args[@]}" BUILD_ONLY=kernel; then
+            ./compile.sh kernel "${args[@]}"
           fi
 
       - name: Extract generated Armbian headers

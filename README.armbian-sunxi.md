@@ -44,6 +44,8 @@ kernel_branch: current
 release: jammy
 ```
 
+The from-source workflow passes `EXTRAWIFI=no` internally so Armbian does not fetch and patch unrelated in-tree Realtek Wi-Fi drivers while generating the kernel headers.
+
 If the generated kernel is not exactly `5.15.93-sunxi`, check `/etc/armbian-release` on the board and use its `BUILD_REPOSITORY_COMMIT` and `BOARD` values as the workflow inputs. The `release` input should match the image userspace, which is `jammy` for this image filename.
 
 On the board, collect the exact build metadata with:
