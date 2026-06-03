@@ -19,8 +19,10 @@
 #include <linux/kthread.h>
 #include <linux/etherdevice.h>
 #include <linux/version.h>
+#include <linux/crypto.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
 #include <crypto/hash.h>
+#include <crypto/skcipher.h>
 #else
 #include <linux/crypto.h>
 #endif
@@ -471,18 +473,30 @@ int ssv6xxx_cpu_callback(struct notifier_block *nfb,
 static void ssv6xxx_preload_sw_cipher(void)
 {
 #ifdef USE_LOCAL_CRYPTO
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+    struct crypto_skcipher *tmpblkcipher;
+#else
     struct crypto_blkcipher *tmpblkcipher;
+#endif
     struct crypto_cipher *tmpcipher;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
     struct crypto_ahash *tmphash;
 #else
     struct crypto_hash *tmphash;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+    tmpblkcipher = crypto_alloc_skcipher("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+#else
     tmpblkcipher = crypto_alloc_blkcipher("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+#endif
     if (IS_ERR(tmpblkcipher)) {
         printk(KERN_ERR " ARC4 cipher allocate fail ");
     } else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+        crypto_free_skcipher(tmpblkcipher);
+#else
         crypto_free_blkcipher(tmpblkcipher);
+#endif
     }
     tmpcipher = crypto_alloc_cipher("aes", 0, CRYPTO_ALG_ASYNC);
     if (IS_ERR(tmpcipher)) {
@@ -2172,14 +2186,18 @@ static struct platform_driver ssv6xxx_driver = {
         .owner = THIS_MODULE,
     }
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+static int device_match_by_alias(struct device *dev, const void *data)
+#else
 static int device_match_by_alias(struct device *dev, void *data)
+#endif
 {
     struct device_driver *driver = dev->driver;
     struct _pattern {
         char driver_name[32];
         char device_name[32];
-    } *pattern;
-    pattern = (struct _pattern *)data;
+    };
+    const struct _pattern *pattern = data;
     if (!strcmp(driver->name, pattern->driver_name) && !strcmp(dev_name(dev), pattern->device_name))
         return 1;
     if (!strcmp(driver->name, pattern->driver_name) && !strcmp("", pattern->device_name))

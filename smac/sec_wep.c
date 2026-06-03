@@ -24,7 +24,11 @@
 #include <linux/mm.h>
 #include <asm/string.h>
 #include <net/lib80211.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+#include <crypto/skcipher.h>
+#else
 #include <linux/crypto.h>
+#endif
 #include <linux/crc32.h>
 #include "sec.h"
 struct lib80211_wep_data {
@@ -32,8 +36,13 @@ struct lib80211_wep_data {
     u8 key[WEP_KEY_LEN + 1];
     u8 key_len;
     u8 key_idx;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+    struct crypto_skcipher *tx_tfm;
+    struct crypto_skcipher *rx_tfm;
+#else
     struct crypto_blkcipher *tx_tfm;
     struct crypto_blkcipher *rx_tfm;
+#endif
 };
 static void *lib80211_wep_init (int keyidx)
 {
@@ -42,12 +51,22 @@ static void *lib80211_wep_init (int keyidx)
     if (priv == NULL)
         goto fail;
     priv->key_idx = keyidx;
-    priv->tx_tfm = crypto_alloc_blkcipher ("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+    priv->tx_tfm =
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+        crypto_alloc_skcipher ("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+#else
+        crypto_alloc_blkcipher ("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+#endif
     if (IS_ERR (priv->tx_tfm)) {
         priv->tx_tfm = NULL;
         goto fail;
     }
-    priv->rx_tfm = crypto_alloc_blkcipher ("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+    priv->rx_tfm =
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+        crypto_alloc_skcipher ("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+#else
+        crypto_alloc_blkcipher ("ecb(arc4)", 0, CRYPTO_ALG_ASYNC);
+#endif
     if (IS_ERR (priv->rx_tfm)) {
         priv->rx_tfm = NULL;
         goto fail;
@@ -57,9 +76,17 @@ static void *lib80211_wep_init (int keyidx)
 fail:
     if (priv) {
         if (priv->tx_tfm)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+            crypto_free_skcipher (priv->tx_tfm);
+#else
             crypto_free_blkcipher (priv->tx_tfm);
+#endif
         if (priv->rx_tfm)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+            crypto_free_skcipher (priv->rx_tfm);
+#else
             crypto_free_blkcipher (priv->rx_tfm);
+#endif
         kfree (priv);
     }
     return NULL;
@@ -69,9 +96,17 @@ static void lib80211_wep_deinit (void *priv)
     struct lib80211_wep_data *_priv = priv;
     if (_priv) {
         if (_priv->tx_tfm)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+            crypto_free_skcipher (_priv->tx_tfm);
+#else
             crypto_free_blkcipher (_priv->tx_tfm);
+#endif
         if (_priv->rx_tfm)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+            crypto_free_skcipher (_priv->rx_tfm);
+#else
             crypto_free_blkcipher (_priv->rx_tfm);
+#endif
     }
     kfree (priv);
 }
@@ -102,11 +137,16 @@ static int lib80211_wep_build_iv (struct sk_buff *skb, int hdr_len,
 static int lib80211_wep_encrypt (struct sk_buff *skb, int hdr_len, void *priv)
 {
     struct lib80211_wep_data *wep = priv;
-    struct blkcipher_desc desc = {.tfm = wep->tx_tfm};
     u32 crc, klen, len;
     u8 *pos, *icv;
     struct scatterlist sg;
     u8 key[WEP_KEY_LEN + 3];
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+    struct skcipher_request *req;
+    int err;
+#else
+    struct blkcipher_desc desc = {.tfm = wep->tx_tfm};
+#endif
     if (skb_tailroom (skb) < 4) {
         printk("####%s: too few tailroom\n", __FUNCTION__);
         return -1;
@@ -126,18 +166,36 @@ static int lib80211_wep_encrypt (struct sk_buff *skb, int hdr_len, void *priv)
     icv[1] = crc >> 8;
     icv[2] = crc >> 16;
     icv[3] = crc >> 24;
-    crypto_blkcipher_setkey (wep->tx_tfm, key, klen);
     sg_init_one (&sg, pos, len + 4);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+    crypto_skcipher_setkey (wep->tx_tfm, key, klen);
+    req = skcipher_request_alloc (wep->tx_tfm, GFP_ATOMIC);
+    if (!req)
+        return -ENOMEM;
+    skcipher_request_set_callback (req, 0, NULL, NULL);
+    skcipher_request_set_crypt (req, &sg, &sg, len + 4, NULL);
+    err = crypto_skcipher_encrypt (req);
+    skcipher_request_zero (req);
+    skcipher_request_free (req);
+    return err;
+#else
+    crypto_blkcipher_setkey (wep->tx_tfm, key, klen);
     return crypto_blkcipher_encrypt (&desc, &sg, &sg, len + 4);
+#endif
 }
 static int lib80211_wep_decrypt (struct sk_buff *skb, int hdr_len, void *priv)
 {
     struct lib80211_wep_data *wep = priv;
-    struct blkcipher_desc desc = {.tfm = wep->rx_tfm};
     u32 crc, klen, plen;
     u8 key[WEP_KEY_LEN + 3];
     u8 keyidx, *pos, icv[4], *pos2;
     struct scatterlist sg;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+    struct skcipher_request *req;
+    int err;
+#else
+    struct blkcipher_desc desc = {.tfm = wep->rx_tfm};
+#endif
     if (skb->len < hdr_len + 8) {
         printk ("%s::skb->len = %d\n", __FUNCTION__, skb->len);
         return -1;
@@ -152,10 +210,24 @@ static int lib80211_wep_decrypt (struct sk_buff *skb, int hdr_len, void *priv)
     klen = 3 + wep->key_len;
     memcpy (key + 3, wep->key, wep->key_len);
     plen = skb->len - hdr_len - 8;
-    crypto_blkcipher_setkey (wep->rx_tfm, key, klen);
     sg_init_one (&sg, pos, plen + 4);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+    crypto_skcipher_setkey (wep->rx_tfm, key, klen);
+    req = skcipher_request_alloc (wep->rx_tfm, GFP_ATOMIC);
+    if (!req)
+        return -ENOMEM;
+    skcipher_request_set_callback (req, 0, NULL, NULL);
+    skcipher_request_set_crypt (req, &sg, &sg, plen + 4, NULL);
+    err = crypto_skcipher_decrypt (req);
+    skcipher_request_zero (req);
+    skcipher_request_free (req);
+    if (err)
+        return -7;
+#else
+    crypto_blkcipher_setkey (wep->rx_tfm, key, klen);
     if (crypto_blkcipher_decrypt (&desc, &sg, &sg, plen + 4))
         return -7;
+#endif
     crc = ~crc32_le (~0, pos, plen);
     icv[0] = crc;
     icv[1] = crc >> 8;

@@ -20,7 +20,10 @@
 #include <linux/version.h>
 #include <linux/sched.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-#include <linux/sched/types.h>
+#include <uapi/linux/sched/types.h>
+#endif
+#ifndef MODULE_SUPPORTED_DEVICE
+#define MODULE_SUPPORTED_DEVICE(name)
 #endif
 #ifdef SSV_MAC80211
 #include "ssv_mac80211.h"

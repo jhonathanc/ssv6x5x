@@ -1673,9 +1673,13 @@ static int ssv_cmd_rawpkt_context(char *buf, int len, void *file)
     int rdlen;
     if (!file)
         return 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+    rdlen = kernel_read(fp, buf, len, &fp->f_pos);
+#else
     rdlen = kernel_read(fp, fp->f_pos, buf, len);
     if (rdlen > 0)
         fp->f_pos += rdlen;
+#endif
     return rdlen;
 }
 static void ssv_cmd_rawpkt_send(struct ssv_hw *sh, char *filename)

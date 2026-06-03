@@ -594,7 +594,13 @@ static void ssv6006_flash_read_all_map(struct ssv_hw *sh)
         printk("flash_file %s not found\n", DEFAULT_CFG_BIN_NAME);
         return;
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+    rdlen = kernel_read(fp, (u8 *)&flash_table, sizeof(struct ssv6006_flash_layout_table), &fp->f_pos);
+#else
     rdlen = kernel_read(fp, fp->f_pos, (u8 *)&flash_table, sizeof(struct ssv6006_flash_layout_table));
+    if (rdlen > 0)
+        fp->f_pos += rdlen;
+#endif
     filp_close((struct file *)fp, NULL);
     if (rdlen < 0)
         return;
