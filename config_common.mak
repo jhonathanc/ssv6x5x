@@ -100,6 +100,8 @@ ccflags-y += -DUSE_GENERIC_DECI_TBL
 ## should not enable again here. 
 
 # Use crypto in SSV driver.
+SSV_USE_LOCAL_CRYPTO ?= 1
+ifeq ($(SSV_USE_LOCAL_CRYPTO),1)
 ccflags-y += -DUSE_LOCAL_CRYPTO
 ccflags-y += -DUSE_LOCAL_WEP_CRYPTO
 ccflags-y += -DUSE_LOCAL_TKIP_CRYPTO
@@ -107,6 +109,7 @@ ccflags-y += -DUSE_LOCAL_CCMP_CRYPTO
 ccflags-y += -DUSE_LOCAL_SMS4_CRYPTO
 ccflags-y += -DCONFIG_SSV_WAPI
 ccflags-y += -DHAS_CRYPTO_LOCK
+endif
 
 #ccflags-y += -DCONFIG_IRQ_DEBUG_COUNT
 #ccflags-y += -DCONFIG_SSV6XXX_DEBUGFS

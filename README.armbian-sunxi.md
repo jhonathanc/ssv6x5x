@@ -54,6 +54,8 @@ release: jammy
 
 The from-source workflow passes `EXTRAWIFI=no` internally so Armbian does not fetch and patch unrelated in-tree Realtek Wi-Fi drivers while generating the kernel headers.
 
+The H3 mainline profile also sets `SSV_USE_LOCAL_CRYPTO=0` so the driver does not build its legacy WEP/TKIP/CCMP crypto helpers against newer kernel crypto APIs. Hardware crypto is still available when the chip supports it; otherwise mac80211 can fall back to software crypto.
+
 If the generated kernel is not exactly `5.15.93-sunxi`, check `/etc/armbian-release` on the board and use its `BUILD_REPOSITORY_COMMIT` and `BOARD` values as the workflow inputs. The `release` input should match the image userspace, which is `jammy` for this image filename.
 
 On the board, collect the exact build metadata with:
