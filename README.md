@@ -1,213 +1,325 @@
-ssv6x5x
+# ssv6x5x
 
-Driver Wi-Fi "ssv6x5x" adaptado para uso em sistemas Linux embarcados, com foco em placas/TV boxes que utilizam chipsets da família SSV6x5x.
+Driver Wi‑Fi `ssv6x5x` compilado para **Armbian sunxi kernel 5.15.93**.
 
-Este repositório é baseado no projeto original de adaptação do driver para kernels Rockchip Linux 4.4, especialmente para SoCs RK322x, e também disponibiliza builds pré-compilados na página de releases do projeto.
+Este repositório contém uma adaptação do driver `ssv6x5x` para chipsets Wi‑Fi da família SSV6x5x, comuns em algumas TV boxes e dispositivos embarcados.
 
-Sobre
+A release `5.15.93` inclui:
 
-O "ssv6x5x" é um driver para chipsets Wi-Fi da família SSV6x5x, comuns em algumas TV boxes e dispositivos embarcados.
+- Driver Wi‑Fi compilado: `ssv6x5x-armbian-5.15.93-sunxi.tar.gz`
+- Instalador dos headers do kernel: `armbian-sunxi-5.15.93-sunxi-headers-installer.tar.gz`
+- Arquivos `.sha256` para verificação de integridade
 
-Este projeto pode ser usado de duas formas:
+## Compatibilidade
 
-1. Instalando um driver pré-compilado disponível em Releases.
-2. Compilando o driver manualmente no próprio dispositivo.
+Esta release foi preparada para:
 
-Compatibilidade
+```text
+Kernel: 5.15.93-sunxi
+Distribuição alvo: Armbian / sunxi
+```
 
-O suporte depende da versão do kernel, da arquitetura e do hardware utilizado.
+Antes de instalar, confira a versão do kernel em execução:
 
-Antes de instalar, confira a versão do kernel do seu sistema:
-
+```bash
 uname -r
+```
 
-Baixe somente um driver compatível com a sua versão de kernel. Um módulo compilado para outro kernel normalmente não será carregado corretamente.
+O resultado esperado deve ser:
 
-Instalação usando a página de Releases
+```text
+5.15.93-sunxi
+```
 
-A forma mais simples de instalar é baixar o driver já compilado a partir da página de releases deste repositório:
+Se o seu kernel for diferente, o módulo pode falhar ao carregar com erro como `invalid module format`.
 
-https://github.com/jhonathanc/ssv6x5x/releases
+## Download da release 5.15.93
 
-1. Baixe os arquivos da release
+A release fixa está disponível em:
 
-Acesse a página de releases:
+```text
+https://github.com/jhonathanc/ssv6x5x/releases/tag/5.15.93
+```
 
-https://github.com/jhonathanc/ssv6x5x/releases/latest
+Para baixar diretamente pelo terminal:
 
-Baixe os arquivos disponíveis na seção Assets da release correspondente ao seu kernel.
-
-Você também pode baixar via terminal usando "wget" ou "curl". Exemplo:
-
+```bash
 mkdir -p ~/ssv6x5x-driver
 cd ~/ssv6x5x-driver
 
-# Substitua a URL abaixo pelo link do arquivo disponível em Assets
-wget https://github.com/jhonathanc/ssv6x5x/releases/latest/download/NOME_DO_ARQUIVO
+wget https://github.com/jhonathanc/ssv6x5x/releases/download/5.15.93/ssv6x5x-armbian-5.15.93-sunxi.tar.gz
+wget https://github.com/jhonathanc/ssv6x5x/releases/download/5.15.93/ssv6x5x-armbian-5.15.93-sunxi.tar.gz.sha256
+```
 
-Ou, caso use GitHub CLI:
+Opcionalmente, baixe também o instalador dos headers:
 
-mkdir -p ~/ssv6x5x-driver
-cd ~/ssv6x5x-driver
+```bash
+wget https://github.com/jhonathanc/ssv6x5x/releases/download/5.15.93/armbian-sunxi-5.15.93-sunxi-headers-installer.tar.gz
+wget https://github.com/jhonathanc/ssv6x5x/releases/download/5.15.93/armbian-sunxi-5.15.93-sunxi-headers-installer.tar.gz.sha256
+```
 
-gh release download --repo jhonathanc/ssv6x5x --latest
+## Verificar integridade dos arquivos
 
-2. Extraia os arquivos, se necessário
+Depois do download, valide os checksums:
 
-Se o arquivo baixado estiver compactado:
+```bash
+sha256sum -c ssv6x5x-armbian-5.15.93-sunxi.tar.gz.sha256
+```
 
-tar -xvf NOME_DO_ARQUIVO.tar.gz
+Se também baixou os headers:
 
-ou:
+```bash
+sha256sum -c armbian-sunxi-5.15.93-sunxi-headers-installer.tar.gz.sha256
+```
 
-unzip NOME_DO_ARQUIVO.zip
+A saída esperada deve indicar `OK`.
 
-3. Instale o módulo do driver
+## Instalação do driver pré-compilado
 
-Se a release incluir um arquivo ".ko", instale-o no diretório de módulos do kernel atual:
+Extraia o pacote do driver:
 
+```bash
+tar -xzf ssv6x5x-armbian-5.15.93-sunxi.tar.gz
+```
+
+Entre no diretório extraído, se ele tiver sido criado:
+
+```bash
+ls
+```
+
+Localize o arquivo do módulo:
+
+```bash
+find . -name "*.ko"
+```
+
+Instale o módulo no diretório do kernel atual:
+
+```bash
 sudo mkdir -p /lib/modules/$(uname -r)/kernel/drivers/net/wireless/ssv6x5x
-sudo cp *.ko /lib/modules/$(uname -r)/kernel/drivers/net/wireless/ssv6x5x/
+sudo cp $(find . -name "*.ko" | head -n 1) /lib/modules/$(uname -r)/kernel/drivers/net/wireless/ssv6x5x/
 sudo depmod -a
+```
 
-Carregue o módulo:
+Carregue o driver:
 
+```bash
 sudo modprobe ssv6x5x
+```
 
-Se o nome do módulo for diferente, verifique com:
+Caso o nome do módulo seja diferente, verifique o nome do arquivo `.ko`:
 
-ls *.ko
+```bash
+find . -name "*.ko"
+```
 
-e carregue usando o nome correto, sem a extensão ".ko":
+E carregue usando o nome correto, sem a extensão `.ko`:
 
+```bash
 sudo modprobe NOME_DO_MODULO
+```
 
-4. Instale o arquivo de configuração/firmware
+## Instalação de arquivos de firmware/configuração
 
-Caso a release inclua arquivos como "ssv6x5x-wifi.cfg", copie-os para "/lib/firmware":
+Se o pacote extraído incluir arquivos de firmware ou configuração, copie-os para `/lib/firmware`:
 
-sudo cp ssv6x5x-wifi.cfg /lib/firmware/
+```bash
+sudo cp $(find . -name "*.bin") /lib/firmware/ 2>/dev/null || true
+sudo cp $(find . -name "*.cfg") /lib/firmware/ 2>/dev/null || true
+```
 
-Se houver arquivos ".bin" de firmware, copie-os também:
+Se existir o arquivo `ssv6x5x-wifi.cfg`, copie-o explicitamente:
 
-sudo cp *.bin /lib/firmware/
+```bash
+sudo cp ssv6x5x-wifi.cfg /lib/firmware/ 2>/dev/null || true
+```
 
-5. Reinicie ou recarregue o driver
+## Reiniciar o sistema
 
-Depois da instalação, reinicie o sistema:
+Após instalar o driver, reinicie:
 
+```bash
 sudo reboot
+```
 
-Ou tente recarregar o módulo manualmente:
+Depois do reboot, verifique se a interface Wi‑Fi apareceu:
 
-sudo modprobe -r ssv6x5x
-sudo modprobe ssv6x5x
-
-6. Verifique se o Wi-Fi foi detectado
-
-Após reiniciar, verifique se a interface Wi-Fi apareceu:
-
+```bash
 ip link
+```
 
-Também é útil conferir as mensagens do kernel:
+Também é útil conferir os logs do kernel:
 
+```bash
 dmesg | grep -i ssv
+```
 
 ou:
 
+```bash
 dmesg | grep -i wifi
+```
 
-Compilando no próprio dispositivo
+## Instalação dos headers do kernel
 
-Caso não exista uma release compatível com o seu kernel, você pode tentar compilar o driver manualmente.
+Os headers são necessários caso você queira compilar o driver manualmente ou preparar o ambiente de build.
 
-Dependências
+Baixe e extraia o pacote:
 
-Instale os pacotes necessários:
+```bash
+mkdir -p ~/ssv6x5x-headers
+cd ~/ssv6x5x-headers
 
+wget https://github.com/jhonathanc/ssv6x5x/releases/download/5.15.93/armbian-sunxi-5.15.93-sunxi-headers-installer.tar.gz
+tar -xzf armbian-sunxi-5.15.93-sunxi-headers-installer.tar.gz
+```
+
+Verifique o conteúdo extraído:
+
+```bash
+ls -la
+```
+
+Se houver um script de instalação, dê permissão e execute:
+
+```bash
+chmod +x *.sh
+sudo ./*.sh
+```
+
+Se houver pacotes `.deb`, instale com:
+
+```bash
+sudo dpkg -i *.deb
+sudo apt -f install
+```
+
+Depois, confirme se o diretório de build do kernel existe:
+
+```bash
+ls -la /lib/modules/$(uname -r)/build
+```
+
+## Compilando manualmente
+
+Caso queira compilar o driver a partir do código-fonte, instale as dependências:
+
+```bash
 sudo apt update
-sudo apt install -y build-essential git linux-headers-$(uname -r)
+sudo apt install -y build-essential git
+```
 
-Em sistemas Armbian, os headers podem ter um nome específico. Verifique os pacotes disponíveis para o seu kernel caso o comando acima não funcione.
+Clone o repositório:
 
-Clonar o repositório
-
+```bash
 git clone https://github.com/jhonathanc/ssv6x5x.git
 cd ssv6x5x
+```
 
-Compilar
+Carregue as variáveis de build, se necessário:
 
+```bash
 source ./vars
+```
+
+Compile:
+
+```bash
 make -j$(nproc)
+```
 
-Instalar
+Instale:
 
+```bash
 sudo make install
 sudo depmod -a
 sudo modprobe ssv6x5x
+```
 
-Depois, reinicie:
+Reinicie:
 
+```bash
 sudo reboot
+```
 
-Integração na árvore do kernel
+## Scripts auxiliares
 
-Outra opção é integrar o driver diretamente na árvore do kernel.
+O repositório também pode incluir scripts auxiliares:
 
-Copie este diretório para:
+- `load.sh`: carrega o driver
+- `unload.sh`: descarrega o driver
+- `remove_old_driver.sh`: remove versões antigas do driver
+- `vars` / `vars.sh`: configura variáveis de ambiente para build
 
-drivers/net/wireless/ssv6x5x
+Exemplo:
 
-Depois, adapte os arquivos "Kconfig" e "Makefile" do kernel para incluir o driver e compile o kernel normalmente.
+```bash
+chmod +x load.sh unload.sh remove_old_driver.sh
+sudo ./load.sh
+```
 
-Solução de problemas
+## Solução de problemas
 
-O módulo não carrega
+### Verificar se o módulo foi carregado
 
-Verifique a mensagem de erro:
+```bash
+lsmod | grep ssv
+```
 
-dmesg | tail -n 100
+### Verificar logs do driver
 
-Confira também se o módulo foi compilado para o mesmo kernel em execução:
+```bash
+dmesg | grep -i ssv
+```
 
+### Erro `invalid module format`
+
+Esse erro normalmente indica que o driver foi compilado para uma versão de kernel diferente da que está em execução.
+
+Confira:
+
+```bash
 uname -r
 modinfo ssv6x5x
+```
 
-A interface Wi-Fi não aparece
+A release `5.15.93` é destinada ao kernel:
 
-Verifique se o driver foi carregado:
+```text
+5.15.93-sunxi
+```
 
+### Interface Wi‑Fi não aparece
+
+Confira se o módulo foi carregado:
+
+```bash
 lsmod | grep ssv
+```
 
-Confira os logs:
+Confira se os arquivos de firmware/configuração foram copiados:
 
+```bash
+ls -la /lib/firmware | grep -i ssv
+```
+
+Confira as mensagens do kernel:
+
+```bash
+dmesg | grep -i firmware
 dmesg | grep -i ssv
+dmesg | grep -i wifi
+```
 
-Verifique também se os arquivos de configuração e firmware estão em "/lib/firmware".
-
-Erro de versão do kernel
-
-Se aparecer erro como "invalid module format", o driver foi compilado para uma versão diferente do kernel.
-
-Nesse caso, use uma release compatível com o seu kernel ou compile o driver diretamente no dispositivo.
-
-Estrutura útil do projeto
-
-Alguns arquivos importantes:
-
-- "vars" / "vars.sh": variáveis usadas no processo de build.
-- "Makefile": regras principais de compilação.
-- "ssv6x5x-wifi.cfg": configuração do driver/firmware.
-- "load.sh": script auxiliar para carregar o driver.
-- "unload.sh": script auxiliar para descarregar o driver.
-- "remove_old_driver.sh": script auxiliar para remover versões antigas do driver.
-
-Créditos
+## Créditos
 
 Este repositório é um fork/adaptação do projeto original:
 
+```text
 https://github.com/paolosabatino/ssv6x5x
+```
 
-Licença
+## Licença
 
-Consulte os arquivos de licença presentes no repositório original e neste fork.
+Consulte os arquivos de licença presentes neste repositório e no projeto original.
