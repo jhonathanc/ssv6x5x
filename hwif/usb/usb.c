@@ -911,7 +911,7 @@ void ssv6xxx_usb_exit(void)
 static void __exit ssv6xxx_usb_exit(void)
 #endif
 {
-    if (driver_for_each_device(&ssv_usb_driver.drvwrap.driver, NULL,
+    if (driver_for_each_device(SSV_USB_DRIVER_DEVICE_DRIVER(&ssv_usb_driver), NULL,
                                NULL, ssv_usb_do_device_exit)) {};
     printk(KERN_INFO "ssv6xxx_usb_exit\n");
     usb_deregister(&ssv_usb_driver);

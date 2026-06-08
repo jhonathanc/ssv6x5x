@@ -214,9 +214,9 @@ int ssv6xxx_do_iq_calib(struct ssv_hw *sh, struct ssv6xxx_iqk_cfg *p_cfg)
     host_cmd->len = skb->data_len;
     p_cfg->phy_tbl_size = PHY_SETTING_SIZE;
     p_cfg->rf_tbl_size = RF_SETTING_SIZE;
-    memcpy(host_cmd->dat32, p_cfg, IQK_CFG_LEN);
-    memcpy(host_cmd->dat8+IQK_CFG_LEN, phy_setting, PHY_SETTING_SIZE);
-    memcpy(host_cmd->dat8+IQK_CFG_LEN+PHY_SETTING_SIZE, ssv6200_rf_tbl, RF_SETTING_SIZE);
+    memcpy(SSV_HOST_CMD_PAYLOAD(host_cmd), p_cfg, IQK_CFG_LEN);
+    memcpy(SSV_HOST_CMD_PAYLOAD(host_cmd) + IQK_CFG_LEN, phy_setting, PHY_SETTING_SIZE);
+    memcpy(SSV_HOST_CMD_PAYLOAD(host_cmd) + IQK_CFG_LEN + PHY_SETTING_SIZE, ssv6200_rf_tbl, RF_SETTING_SIZE);
     HCI_SEND_CMD(sh, skb);
     ssv_skb_free(sh->sc, skb);
     {
@@ -747,10 +747,14 @@ static int tu_ssv6xxx_init_softc(struct ssv_softc *sc)
     sc->cmd_data.dbg_log.size = 0;
     sc->cmd_data.dbg_log.totalsize = 0;
     sc->cmd_data.dbg_log.data = NULL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
+    timer_setup(&sc->house_keeping, ssv6xxx_house_keeping, 0);
+#else
     init_timer(&sc->house_keeping);
-    sc->house_keeping.expires = jiffies + msecs_to_jiffies(HOUSE_KEEPING_TIMEOUT);
     sc->house_keeping.function = ssv6xxx_house_keeping;
     sc->house_keeping.data = (unsigned long)sc;
+#endif
+    sc->house_keeping.expires = jiffies + msecs_to_jiffies(HOUSE_KEEPING_TIMEOUT);
     sc->house_keeping_wq= create_singlethread_workqueue("ssv6xxx_house_keeping_wq");
     INIT_WORK(&sc->rx_stuck_work, ssv6xxx_rx_stuck_process);
     INIT_WORK(&sc->mib_edca_work, ssv6xxx_mib_edca_process);
@@ -837,7 +841,7 @@ static int ssv6xxx_deinit_softc(struct ssv_softc *sc)
     flush_workqueue(sc->rc_report_workqueue);
     destroy_workqueue(sc->rc_report_workqueue);
     destroy_workqueue(sc->config_wq);
-    del_timer_sync(&sc->house_keeping);
+    SSV_TIMER_DELETE_SYNC(&sc->house_keeping);
     destroy_workqueue(sc->house_keeping_wq);
     return 0;
 }
@@ -1318,7 +1322,7 @@ void ssv6xxx_deinit_mac(struct ssv_softc *sc)
     }
 #endif
 }
-void inline ssv6xxx_deinit_hw(struct ssv_softc *sc)
+inline void ssv6xxx_deinit_hw(struct ssv_softc *sc)
 {
     dev_dbg(sc->dev, "%s(): ", __FUNCTION__);
     ssv6xxx_deinit_mac(sc);
@@ -2116,7 +2120,7 @@ static void ssv6xxx_stop_all_running_threads(struct ssv_softc *sc)
         dev_dbg(sc->dev, "HCI TX task is stopped.");
     }
 }
-int tu_ssv6xxx_dev_remove(struct platform_device *pdev)
+SSV_PLATFORM_REMOVE_RET tu_ssv6xxx_dev_remove(struct platform_device *pdev)
 {
     struct ieee80211_hw *hw=dev_get_drvdata(&pdev->dev);
     struct ssv_softc *sc=hw->priv;
@@ -2126,7 +2130,7 @@ int tu_ssv6xxx_dev_remove(struct platform_device *pdev)
     dev_dbg(sc->dev, "ieee80211_free_hw(): ");
     ieee80211_free_hw(hw);
     dev_info(sc->dev, "ssv6200: Driver unloaded");
-    return 0;
+    SSV_PLATFORM_REMOVE_RETURN;
 }
 EXPORT_SYMBOL(tu_ssv6xxx_dev_remove);
 static const struct platform_device_id ssv6xxx_id_table[] = {
@@ -2168,7 +2172,7 @@ static struct platform_driver ssv6xxx_driver = {
         .owner = THIS_MODULE,
     }
 };
-static int device_match_by_alias(struct device *dev, void *data)
+static int device_match_by_alias(struct device *dev, const void *data)
 {
     struct device_driver *driver = dev->driver;
     struct _pattern {

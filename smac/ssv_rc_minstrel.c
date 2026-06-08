@@ -308,7 +308,7 @@ static void ssv_minstrel_get_rate(void *priv, struct ieee80211_sta *sta,
     u64 delta;
     struct rc_setting *rc_setting = &sc->sh->cfg.rc_setting;
     int force_sample_pr;
-    if (rate_control_send_low(sta, priv_sta, txrc))
+    if (SSV_RATE_CONTROL_SEND_LOW(sta, priv_sta, txrc))
         return;
     if (sc->sh->cfg.auto_rate_enable == false) {
         ssv_minstrel_set_fix_data_rate(sc, minstrel_sta_priv, ar);
@@ -409,7 +409,7 @@ static void ssv6xxx_rate_update_minstrel_type(void *priv, struct ieee80211_suppo
     u8 drate_desc = 0;
     bool supportted_11m = false;
     minstrel_sta_priv->sta = sta;
-    minstrel_sta_priv->is_ht = sta->ht_cap.ht_supported;
+    minstrel_sta_priv->is_ht = SSV_STA_HT_CAP(sta).ht_supported;
     if (minstrel_sta_priv->is_ht) {
         ssv_minstrel_ht_update_caps(priv, sband, sta, priv_sta, oper_chan_type);
         return;
@@ -564,10 +564,11 @@ static void ssv_minstrel_free_sta(void *priv, struct ieee80211_sta *sta, void *p
     kfree(minstrel_sta_priv->ratelist);
     kfree(minstrel_sta_priv);
 }
-static void *ssv_minstrel_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
+static void *ssv_minstrel_alloc(SSV_RATE_ALLOC_ARGS)
 {
     struct ssv_softc *sc = hw->priv;
     struct ssv_minstrel_priv *smp;
+    SSV_RATE_ALLOC_UNUSED_DEBUGFS;
     sc->rc = kzalloc(sizeof(struct ssv_minstrel_priv), GFP_ATOMIC);
     if (!sc->rc)
         return NULL;

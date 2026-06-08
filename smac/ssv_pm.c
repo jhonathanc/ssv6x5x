@@ -83,19 +83,19 @@ void ssv6xxx_late_resume(void)
 #endif
     if(sc->ps_status == PWRSV_ENABLE) {
         if(sc->vif_info[0].vif) {
-            if(sc->vif_info[0].vif->bss_conf.assoc) {
-                printk("sc->vif_info[0].vif->bss_conf.assoc\n");
+            if(SSV_VIF_ASSOC(sc->vif_info[0].vif)) {
+                printk("sc->vif_info[0].vif assoc\n");
                 if ((sc->vif_info[0].vif->type == NL80211_IFTYPE_STATION) || (sc->vif_info[0].vif->p2p)) {
-                    printk("sc->vif_info[0].vif->bss_conf.assoc ssv6xxx_send_deauth_toself\n");
+                    printk("sc->vif_info[0].vif assoc ssv6xxx_send_deauth_toself\n");
                     ssv6xxx_send_deauth_toself(sc, sc->vif_info[0].vif->bss_conf.bssid, sc->vif_info[0].vif->addr);
                 }
             }
         }
         if(sc->vif_info[1].vif) {
-            if(sc->vif_info[1].vif->bss_conf.assoc) {
-                printk("sc->vif_info[1].vif->bss_conf.assoc\n");
+            if(SSV_VIF_ASSOC(sc->vif_info[1].vif)) {
+                printk("sc->vif_info[1].vif assoc\n");
                 if ((sc->vif_info[1].vif->type == NL80211_IFTYPE_STATION) || (sc->vif_info[1].vif->p2p)) {
-                    printk("sc->vif_info[1].vif->bss_conf.assoc ssv6xxx_send_deauth_toself\n");
+                    printk("sc->vif_info[1].vif assoc ssv6xxx_send_deauth_toself\n");
                     ssv6xxx_send_deauth_toself(sc, sc->vif_info[1].vif->bss_conf.bssid, sc->vif_info[1].vif->addr);
                 }
             }

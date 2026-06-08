@@ -258,7 +258,7 @@ void ssv6xxx_send_noa_cmd(struct ssv_softc *sc, struct ssv6xxx_p2p_noa_param *p2
     host_cmd->c_type = HOST_CMD;
     host_cmd->h_cmd = (u8)SSV6XXX_HOST_CMD_SET_NOA;
     host_cmd->len = skb->data_len;
-    memcpy(host_cmd->dat32, p2p_noa_param, sizeof(struct ssv6xxx_p2p_noa_param));
+    memcpy(SSV_HOST_CMD_PAYLOAD(host_cmd), p2p_noa_param, sizeof(struct ssv6xxx_p2p_noa_param));
     printk("Noa cmd NOA Parameter:\nEnable=%d\nInterval=%d\nDuration=%d\nStart_time=0x%08x\nCount=%d\nAddr=[%02x:%02x:%02x:%02x:%02x:%02x]vif[%d]\n\n",
                         p2p_noa_param->enable,
                         p2p_noa_param->interval,

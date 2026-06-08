@@ -19,7 +19,7 @@
 #define COMMON_FOR_SMAC
 #define REG32(_addr) REG32_R(_addr)
 #define REG32_W(_addr,_value) do { SMAC_REG_WRITE(sh, _addr, _value); } while (0)
-static void inline print_null(const char *fmt, ...)
+static inline void print_null(const char *fmt, ...)
 {
 }
 #define MSLEEP(_val) msleep(_val)

@@ -18,6 +18,8 @@
 #include <linux/delay.h>
 #include <linux/version.h>
 #include <linux/time.h>
+#include <linux/timekeeping.h>
+#include <linux/sched/clock.h>
 #include <linux/kthread.h>
 #ifdef SSV_MAC80211
 #include "ssv_mac80211.h"
@@ -1083,7 +1085,7 @@ static bool ssv6xxx_use_hw_encrypt(int cipher, struct ssv_softc *sc,
 {
     if ((cipher == SSV_CIPHER_TKIP)
         || ((!(sc->sh->cfg.hw_caps & SSV6200_HW_CAP_AMPDU_TX) ||
-             (sta_priv->sta_info->sta->ht_cap.ht_supported == false))
+             (SSV_STA_HT_CAP(sta_priv->sta_info->sta).ht_supported == false))
             && (vif_priv->force_sw_encrypt == false))) {
         return true;
     } else {
@@ -2345,7 +2347,7 @@ out:
 #ifdef REPORT_TX_DONE_IN_IRQ
             ieee80211_tx_status_irqsafe(sc->hw, skb);
 #else
-            ieee80211_tx_status(sc->hw, skb);
+            SSV_IEEE80211_TX_STATUS(sc->hw, skb);
             if (skb_queue_len(&sc->rx_skb_q))
                 break;
 #endif
@@ -2828,7 +2830,7 @@ tx_mpdu:
                 ieee80211_tx_info_clear_status(info);
                 info->flags |= IEEE80211_TX_STAT_ACK;
                 info->status.ack_signal = 100;
-                ieee80211_tx_status(sc->hw, skb);
+                SSV_IEEE80211_TX_STATUS(sc->hw, skb);
             } else {
                 txq_idx = SSV_GET_TX_DESC_TXQ_IDX(sc->sh, skb);
                 ret = HCI_SEND(sc->sh, skb, txq_idx);
@@ -3296,8 +3298,13 @@ tx_mpdu:
         }
         return 0;
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
+    void ssv6xxx_house_keeping(struct timer_list *timer) {
+        struct ssv_softc *sc = SSV_FROM_TIMER(sc, timer, house_keeping);
+#else
     void ssv6xxx_house_keeping(unsigned long argv) {
         struct ssv_softc *sc = (struct ssv_softc *)argv;
+#endif
         if (!sc->mac80211_dev_started ||
             (sc->sc_flags & SC_OP_HW_RESET) ||
             (sc->sc_flags & SC_OP_BLOCK_CNTL))
@@ -3418,9 +3425,16 @@ tx_mpdu:
         mutex_unlock(&sc->mutex);
         return 0;
     }
-    static void ssv6200_stop(struct ieee80211_hw *hw) {
+    static void ssv6200_stop(struct ieee80211_hw *hw
+#if SSV_MAC80211_STOP_HAS_SUSPEND
+                             , bool suspend
+#endif
+                            ) {
         struct ssv_softc *sc=hw->priv;
         u32 count=0;
+#if SSV_MAC80211_STOP_HAS_SUSPEND
+        (void)suspend;
+#endif
         dev_dbg(sc->dev, KERN_INFO "%s(): sc->ps_status=%d\n", __FUNCTION__,sc->ps_status);
         mutex_lock(&sc->mutex);
         sc->mac80211_dev_started = false;
@@ -3646,7 +3660,7 @@ tx_mpdu:
             if (sc->vif_info[i].vif != NULL) {
                 vif = sc->vif_info[i].vif;
                 if ((vif->type == NL80211_IFTYPE_STATION) || (vif->type == NL80211_IFTYPE_P2P_CLIENT)) {
-                    if (vif->bss_conf.assoc)
+                    if (SSV_VIF_ASSOC(vif))
                         assoc++;
                     if (vif->p2p)
                         p2p++;
@@ -3664,16 +3678,23 @@ tx_mpdu:
             if (sc->vif_info[i].vif != NULL) {
                 vif = sc->vif_info[i].vif;
                 if ((vif->type == NL80211_IFTYPE_STATION) || (vif->type == NL80211_IFTYPE_P2P_CLIENT)) {
-                    if (vif->bss_conf.assoc)
+                    if (SSV_VIF_ASSOC(vif))
                         assoc++;
                 }
             }
         }
         return assoc;
     }
-    static int ssv6200_config(struct ieee80211_hw *hw, u32 changed) {
+    static int ssv6200_config(struct ieee80211_hw *hw,
+#if SSV_MAC80211_CONFIG_HAS_RADIO_IDX
+                              int radio_idx,
+#endif
+                              u32 changed) {
         struct ssv_softc *sc=hw->priv;
         int ret=0;
+#if SSV_MAC80211_CONFIG_HAS_RADIO_IDX
+        (void)radio_idx;
+#endif
         HCI_WRITE_HW_CONFIG_ON(sc->sh);
         mutex_lock(&sc->mutex);
         if (changed & IEEE80211_CONF_CHANGE_POWER) {
@@ -3831,7 +3852,7 @@ out:
     }
     static void ssv6200_bss_info_changed(struct ieee80211_hw *hw,
                                          struct ieee80211_vif *vif, struct ieee80211_bss_conf *info,
-                                         u32 changed) {
+                                         SSV_BSS_CHANGED_TYPE changed) {
         struct ssv_vif_priv_data *priv_vif = (struct ssv_vif_priv_data *)vif->drv_priv;
         struct ssv_softc *sc = hw->priv;
 #ifdef CONFIG_P2P_NOA
@@ -3896,7 +3917,7 @@ out:
 #endif
             dev_dbg(sc->dev, "NL80211_IFTYPE_STATION!!\n");
             if (changed & BSS_CHANGED_ASSOC) {
-                sc->isAssoc = info->assoc;
+                sc->isAssoc = SSV_BSS_ASSOC(vif, info);
                 if(!sc->isAssoc) {
                     sc->channel_center_freq = 0;
                     sc->ps_aid = 0;
@@ -3905,8 +3926,8 @@ out:
 #endif
                 } else {
                     sc->channel_center_freq = curchan->center_freq;
-                    dev_dbg(sc->dev, KERN_INFO "!!info->aid = %d\n",info->aid);
-                    sc->ps_aid = info->aid;
+                    dev_dbg(sc->dev, KERN_INFO "!!info->aid = %d\n", SSV_BSS_AID(vif, info));
+                    sc->ps_aid = SSV_BSS_AID(vif, info);
 #ifdef SSV_SUPPORT_USB_LPM
                     SSV_SET_USB_LPM(sc, 0);
 #endif
@@ -4404,12 +4425,19 @@ out:
                                const struct ieee80211_tx_queue_params *params)
 #else
     static int ssv6200_conf_tx(struct ieee80211_hw *hw,
-                               struct ieee80211_vif *vif, u16 queue,
+                               struct ieee80211_vif *vif,
+#if SSV_MAC80211_CONF_TX_HAS_LINK_ID
+                               unsigned int link_id,
+#endif
+                               u16 queue,
                                const struct ieee80211_tx_queue_params *params)
 #endif
     {
         struct ssv_softc *sc = hw->priv;
         int ret = 0;
+#if SSV_MAC80211_CONF_TX_HAS_LINK_ID
+        (void)link_id;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,0)
         struct ssv_vif_priv_data *priv_vif = (struct ssv_vif_priv_data *)vif->drv_priv;
         dev_dbg(sc->dev, "[I] sv6200_conf_tx vif[%d] qos[%d] queue[%d] aifsn[%d] cwmin[%d] cwmax[%d] txop[%d] \n",
@@ -5063,11 +5091,15 @@ out:
 #endif
 #endif
 
-    static u64 ssv6200_get_systime_us(void) {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
-        struct timespec ts;
-        get_monotonic_boottime(&ts);
-        return ((u64)ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
+static u64 ssv6200_get_systime_us(void) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+    struct timespec64 ts;
+    ktime_get_boottime_ts64(&ts);
+    return ((u64)ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+    struct timespec ts;
+    get_monotonic_boottime(&ts);
+    return ((u64)ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
 #else
         struct timeval tv;
         do_gettimeofday(&tv);
@@ -5850,7 +5882,7 @@ out:
                 if (sc->vif_info[i].vif != NULL) {
                     vif = sc->vif_info[i].vif;
                     if ((vif->type == NL80211_IFTYPE_STATION) || (vif->type == NL80211_IFTYPE_P2P_CLIENT)) {
-                        if (vif->bss_conf.assoc)
+                        if (SSV_VIF_ASSOC(vif))
                             assoc++;
                         if (vif->p2p)
                             p2p++;

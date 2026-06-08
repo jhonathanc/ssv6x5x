@@ -838,15 +838,15 @@ void ssv6200_ampdu_tx_operation (u16 tid, struct ieee80211_sta *sta,
     ssv_sta_priv->ampdu_tid[tid].sta = sta;
     ssv_sta_priv->ampdu_tid[tid].agg_num_max = MAX_AGGR_NUM;
 #if 1
-    if (buffer_size > IEEE80211_MAX_AMPDU_BUF) {
-        buffer_size = IEEE80211_MAX_AMPDU_BUF;
+    if (buffer_size > SSV_IEEE80211_MAX_AMPDU_BUF) {
+        buffer_size = SSV_IEEE80211_MAX_AMPDU_BUF;
     }
     printk("ssv6200_ampdu_tx_operation:buffer_size=%d\n", buffer_size);
     ssv_sta_priv->ampdu_tid[tid].ssv_baw_size = SSV_AMPDU_WINDOW_SIZE;
 #else
-    ssv_sta_priv->ampdu_tid[tid].ssv_baw_size = IEEE80211_MIN_AMPDU_BUF << sta->ht_cap.ampdu_factor;
-    if(buffer_size > IEEE80211_MAX_AMPDU_BUF) {
-        buffer_size = IEEE80211_MAX_AMPDU_BUF;
+    ssv_sta_priv->ampdu_tid[tid].ssv_baw_size = IEEE80211_MIN_AMPDU_BUF << SSV_STA_HT_CAP(sta).ampdu_factor;
+    if(buffer_size > SSV_IEEE80211_MAX_AMPDU_BUF) {
+        buffer_size = SSV_IEEE80211_MAX_AMPDU_BUF;
     }
     if(ssv_sta_priv->ampdu_tid[tid].ssv_baw_size > buffer_size) {
         ssv_sta_priv->ampdu_tid[tid].ssv_baw_size = buffer_size;
@@ -870,7 +870,7 @@ static void _clear_mpdu_q (struct ieee80211_hw *hw, struct sk_buff_head *q,
         if (mpdu_skb_info_p->directly_ack)
             dev_kfree_skb_any(skb);
         else {
-            ieee80211_tx_status(hw, skb);
+            SSV_IEEE80211_TX_STATUS(hw, skb);
         }
         atomic_dec(&sc->ampdu_tx_frame);
     }
@@ -993,7 +993,7 @@ static void ssv6200_ampdu_tx_state_stop_func (
     struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
     u8 *skb_qos_ctl = ieee80211_get_qos_ctl(hdr);
     u8 tid_no = skb_qos_ctl[0] & 0xf;
-    if ((sta->ht_cap.ht_supported == true)
+    if ((SSV_STA_HT_CAP(sta).ht_supported == true)
         && (!!(sc->sh->cfg.hw_caps & SSV6200_HW_CAP_AMPDU_TX))) {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,32)
         ieee80211_start_tx_ba_session(sc->hw, (u8*)(sta->addr), (u16)tid_no);
@@ -1384,7 +1384,7 @@ bool ssv6200_ampdu_tx_handler (struct ieee80211_hw *hw, struct sk_buff *skb)
             printk("create TX skb copy failed!\n");
             return false;
         }
-        ieee80211_tx_status(sc->hw, tx_skb);
+        SSV_IEEE80211_TX_STATUS(sc->hw, tx_skb);
         skb = copy_skb;
         copy_skb_info_p = (SKB_info *)(skb->head);
         copy_skb_info_p->directly_ack = true;
@@ -1827,7 +1827,7 @@ static void _flush_release_queue (struct ieee80211_hw *hw,
             dev_kfree_skb_any(ampdu_skb);
         } else {
 #if defined(USE_THREAD_RX) && !defined(IRQ_PROC_TX_DATA)
-            ieee80211_tx_status(hw, ampdu_skb);
+            SSV_IEEE80211_TX_STATUS(hw, ampdu_skb);
 #else
             ieee80211_tx_status_irqsafe(hw, ampdu_skb);
 #endif

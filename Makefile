@@ -18,6 +18,12 @@ BKP_CFG := $(shell cp $(KBUILD_TOP)/$(KMODULE_NAME)-wifi.cfg $(KBUILD_TOP)/image
 MODDESTDIR = /lib/modules/$(shell uname -r)/kernel/drivers/net/wireless
 
 EXTRA_CFLAGS := -I$(KBUILD_TOP) -I$(KBUILD_TOP)/include
+ccflags-y += -I$(KBUILD_TOP) -I$(KBUILD_TOP)/include
+ccflags-y += -Wno-error=missing-prototypes -Wno-error=empty-body
+
+ifeq ($(SSV_USE_LOCAL_CRYPTO),0)
+ccflags-y := $(filter-out -DUSE_LOCAL_CRYPTO -DUSE_LOCAL_WEP_CRYPTO -DUSE_LOCAL_TKIP_CRYPTO -DUSE_LOCAL_CCMP_CRYPTO -DUSE_LOCAL_SMS4_CRYPTO -DCONFIG_SSV_WAPI -DHAS_CRYPTO_LOCK,$(ccflags-y))
+endif
 
 DEF_PARSER_H = $(KBUILD_TOP)/include/ssv_conf_parser.h
 $(shell env ccflags="$(ccflags-y)" $(KBUILD_TOP)/parser-conf.sh $(DEF_PARSER_H))

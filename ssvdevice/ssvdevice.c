@@ -19,7 +19,11 @@
 #include <linux/moduleparam.h>
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
+#include <linux/uaccess.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+#include <asm/segment.h>
 #include <asm/uaccess.h>
+#endif
 #include <linux/errno.h>
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
@@ -27,8 +31,6 @@
 #include "ssv_cmd.h"
 #include "ssv_cfg.h"
 #include <linux/fs.h>
-#include <asm/segment.h>
-#include <asm/uaccess.h>
 #include <linux/buffer_head.h>
 #include <linux/ctype.h>
 #include <ssv6200.h>
@@ -44,7 +46,6 @@ MODULE_AUTHOR("iComm-semi, Ltd");
 MODULE_DESCRIPTION("Shared library for SSV wireless LAN cards.");
 MODULE_LICENSE("Dual BSD/GPL");
 static char *tu_stacfgpath = "/lib/firmware/ssv6x5x-wifi.cfg";
-EXPORT_SYMBOL(tu_stacfgpath);
 module_param(tu_stacfgpath, charp, 0000);
 MODULE_PARM_DESC(tu_stacfgpath, "Get path of sta cfg");
 char *tu_cfgfirmwarepath = NULL;
@@ -67,15 +68,27 @@ static struct proc_dir_entry *__ssv_procfs;
 extern struct ssv6xxx_cfg_cmd_table tu_cfg_cmds[];
 extern struct ssv6xxx_cfg tu_ssv_cfg;
 #define READ_CHUNK 32
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
-#define PDE_DATA(inode) ({ \
-    struct proc_dir_entry *dp = PDE(inode); \
-    data = dp->data; })
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0)
+#define SSV_PROC_OPS proc_ops
+#define SSV_PROC_OPEN proc_open
+#define SSV_PROC_READ proc_read
+#define SSV_PROC_WRITE proc_write
+#define SSV_PROC_LSEEK proc_lseek
+#define SSV_PROC_RELEASE proc_release
+#define SSV_PROC_OWNER
+#else
+#define SSV_PROC_OPS file_operations
+#define SSV_PROC_OPEN open
+#define SSV_PROC_READ read
+#define SSV_PROC_WRITE write
+#define SSV_PROC_LSEEK llseek
+#define SSV_PROC_RELEASE release
+#define SSV_PROC_OWNER .owner = THIS_MODULE,
 #endif
 static char *p2pStatus = "0";
 static int ssv6xxx_p2p_open(struct inode *inode, struct file *filp)
 {
-    void *data = PDE_DATA(inode);
+    void *data = SSV_PROC_DATA(inode);
     filp->private_data = data;
     return 0;
 }
@@ -119,15 +132,15 @@ static ssize_t ssv6xxx_p2p_write(struct file *filp, const char __user *buffer,
 out:
     return retval;
 }
-static struct file_operations ssv6xxx_p2p_fops = {
-    .owner = THIS_MODULE,
-    .open = ssv6xxx_p2p_open,
-    .read = ssv6xxx_p2p_read,
-    .write = ssv6xxx_p2p_write,
+static const struct SSV_PROC_OPS ssv6xxx_p2p_fops = {
+    SSV_PROC_OWNER
+    .SSV_PROC_OPEN = ssv6xxx_p2p_open,
+    .SSV_PROC_READ = ssv6xxx_p2p_read,
+    .SSV_PROC_WRITE = ssv6xxx_p2p_write,
 };
 static int ssv6xxx_freq_open(struct inode *inode, struct file *filp)
 {
-    void *data = PDE_DATA(inode);
+    void *data = SSV_PROC_DATA(inode);
     filp->private_data = data;
     return 0;
 }
@@ -153,14 +166,14 @@ static ssize_t ssv6xxx_freq_read(struct file *filp, char __user *buffer,
 out:
     return retval;
 }
-static struct file_operations ssv6xxx_freq_fops = {
-    .owner = THIS_MODULE,
-    .open = ssv6xxx_freq_open,
-    .read = ssv6xxx_freq_read,
+static const struct SSV_PROC_OPS ssv6xxx_freq_fops = {
+    SSV_PROC_OWNER
+    .SSV_PROC_OPEN = ssv6xxx_freq_open,
+    .SSV_PROC_READ = ssv6xxx_freq_read,
 };
 static int ssv6xxx_cmd_file_open(struct inode *inode, struct file *filp)
 {
-    void *data = PDE_DATA(inode);
+    void *data = SSV_PROC_DATA(inode);
     filp->private_data = data;
     return 0;
 }
@@ -239,7 +252,9 @@ size_t read_line(struct file *fp, char *buf, size_t size)
     }
     buffer = buf;
     for (;;) {
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,37)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
+        num_read = SSV_KERNEL_READ(fp, &ch, 1);
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,37)
         if (fp->f_op && fp->f_op->read)
             num_read = fp->f_op->read(fp, &ch, 1, &fp->f_pos);
 #else
@@ -299,7 +314,6 @@ static void _import_default_cfg (char *tu_stacfgpath)
 {
     struct file *fp = (struct file *) NULL;
     char buf[MAX_CHARS_PER_LINE], cfg_cmd[32], cfg_value[32];
-    mm_segment_t fs;
     size_t s, read_len = 0, is_cmd_support = 0;
     printk(KERN_INFO "ssv6x5x: importing configuration from %s", tu_stacfgpath);
     if (tu_stacfgpath == NULL)
@@ -321,10 +335,7 @@ static void _import_default_cfg (char *tu_stacfgpath)
     do {
         memset(cfg_cmd, '\0', sizeof(cfg_cmd));
         memset(cfg_value, '\0', sizeof(cfg_value));
-        fs = get_fs();
-        set_fs(get_ds());
         read_len = read_line(fp, buf, MAX_CHARS_PER_LINE);
-        set_fs(fs);
         sscanf(buf, "%s = %s", cfg_cmd, cfg_value);
         if (!ischar(cfg_cmd) || !ischar(cfg_value)) {
             printk("ERORR invalid parameter: %s\n", buf);
@@ -347,11 +358,11 @@ static void _import_default_cfg (char *tu_stacfgpath)
     } while (read_len > 0);
     filp_close(fp, NULL);
 }
-static struct file_operations ssv6xxx_cmd_fops = {
-    .owner = THIS_MODULE,
-    .open = ssv6xxx_cmd_file_open,
-    .read = ssv6xxx_cmd_file_read,
-    .write = ssv6xxx_cmd_file_write,
+static const struct SSV_PROC_OPS ssv6xxx_cmd_fops = {
+    SSV_PROC_OWNER
+    .SSV_PROC_OPEN = ssv6xxx_cmd_file_open,
+    .SSV_PROC_READ = ssv6xxx_cmd_file_read,
+    .SSV_PROC_WRITE = ssv6xxx_cmd_file_write,
 };
 static void *ssv6xxx_dbg_seq_start(struct seq_file *s, loff_t *pos)
 {
@@ -410,7 +421,7 @@ static int ssv6xxx_dbg_file_open(struct inode *inode, struct file *filp)
 {
     int ret = 0;
     struct seq_file *sf;
-    void *data = PDE_DATA(inode);
+    void *data = SSV_PROC_DATA(inode);
     ret = seq_open(filp, &ssv6xxx_dbg_seq_fops);
     if (!ret) {
         sf = filp->private_data;
@@ -418,12 +429,12 @@ static int ssv6xxx_dbg_file_open(struct inode *inode, struct file *filp)
     }
     return ret;
 }
-static struct file_operations ssv6xxx_dbg_fops = {
-    .owner = THIS_MODULE,
-    .open = ssv6xxx_dbg_file_open,
-    .read = seq_read,
-    .llseek = seq_lseek,
-    .release = seq_release,
+static const struct SSV_PROC_OPS ssv6xxx_dbg_fops = {
+    SSV_PROC_OWNER
+    .SSV_PROC_OPEN = ssv6xxx_dbg_file_open,
+    .SSV_PROC_READ = seq_read,
+    .SSV_PROC_LSEEK = seq_lseek,
+    .SSV_PROC_RELEASE = seq_release,
 };
 int ssv_init_cli (const char *dev_name, struct ssv_cmd_data *cmd_data)
 {

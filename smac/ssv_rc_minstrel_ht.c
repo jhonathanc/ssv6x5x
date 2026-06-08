@@ -312,6 +312,7 @@ static int ssv_minstrel_ht_get_sample_rate(struct ssv_softc *sc,
             case 3:
                 sample_up_pr = rc_setting->up_pr3;
                 forbid_time = rc_setting->forbid3;
+                fallthrough;
             case 6:
                 sample_up_pr = rc_setting->up_pr6;
                 forbid_time = rc_setting->forbid6;
@@ -641,7 +642,7 @@ void ssv_minstrel_ht_tx_status(struct ssv_softc *sc, void *rc_info,
     struct ssv_minstrel_ht_sta *mhs;
     struct ssv_minstrel_ht_rate_stats *rate;
     struct ssv_minstrel_priv *smp = (struct ssv_minstrel_priv *)sc->rc;
-    u16 sta_cap = minstrel_sta_priv->sta->ht_cap.cap;
+    u16 sta_cap = SSV_STA_HT_CAP(minstrel_sta_priv->sta).cap;
     int group, r_idx, short_gi, ht40, phy;
     enum nl80211_channel_type channel_type;
     int i = 0;
@@ -724,7 +725,7 @@ void ssv_minstrel_ht_get_rate(void *priv, struct ieee80211_sta *sta, void *priv_
     struct ssv_minstrel_priv *smp = (struct ssv_minstrel_priv *)sc->rc;
     int sample_idx;
     bool sample = false;
-    if (rate_control_send_low(sta, priv_sta, txrc))
+    if (SSV_RATE_CONTROL_SEND_LOW(sta, priv_sta, txrc))
         return;
     info->flags |= mhs->tx_flags;
     if (smp->max_rates == 1 && txrc->skb->protocol == cpu_to_be16(ETH_P_PAE))
@@ -801,8 +802,8 @@ void ssv_minstrel_ht_update_caps(void *priv, struct ieee80211_supported_band *sb
     struct ssv_minstrel_priv *smp = (struct ssv_minstrel_priv *)sc->rc;
     struct ssv_minstrel_sta_priv *sta_priv = priv_sta;
     struct ssv_minstrel_ht_sta *mhs = &sta_priv->ht;
-    struct ieee80211_mcs_info *mcs = &sta->ht_cap.mcs;
-    u16 sta_cap = sta->ht_cap.cap;
+    struct ieee80211_mcs_info *mcs = &SSV_STA_HT_CAP(sta).mcs;
+    u16 sta_cap = SSV_STA_HT_CAP(sta).cap;
     int ack_dur;
     int stbc;
     bool is_sgi = false;

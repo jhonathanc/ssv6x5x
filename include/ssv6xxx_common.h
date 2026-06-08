@@ -101,6 +101,7 @@ typedef struct cfg_host_cmd {
 } HDR_HostCmd;
 #define HOST_CMD_HDR_LEN ((size_t)(((HDR_HostCmd *)100)->dat8)-100U)
 #define HOST_CMD_DUMMY_LEN 4
+#define SSV_HOST_CMD_PAYLOAD(_cmd) ((u8 *)(_cmd) + HOST_CMD_HDR_LEN)
 struct sdio_rxtput_cfg {
     u32 size_per_frame;
     u32 total_frames;
