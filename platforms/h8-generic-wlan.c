@@ -159,8 +159,14 @@ void setup_wifi_wakeup_BB(struct platform_device *pdev, bool bEnable)
 }
 static int wifi_probe(struct platform_device *pdev)
 {
-    struct wifi_platform_data *wifi_ctrl =
-        (struct wifi_platform_data *)(pdev->dev.platform_data);
+    struct wifi_platform_data *wifi_ctrl;
+    
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    wifi_ctrl = dev_get_platdata(&pdev->dev);
+#else
+    wifi_ctrl = (struct wifi_platform_data *)(pdev->dev.platform_data);
+#endif
+    
     printk(KERN_ALERT "wifi_probe\n");
     wifi_control_data = wifi_ctrl;
     wifi_set_power(0,40);
@@ -171,8 +177,14 @@ static int wifi_probe(struct platform_device *pdev)
 }
 static int wifi_remove(struct platform_device *pdev)
 {
-    struct wifi_platform_data *wifi_ctrl =
-        (struct wifi_platform_data *)(pdev->dev.platform_data);
+    struct wifi_platform_data *wifi_ctrl;
+    
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+    wifi_ctrl = dev_get_platdata(&pdev->dev);
+#else
+    wifi_ctrl = (struct wifi_platform_data *)(pdev->dev.platform_data);
+#endif
+    
     wifi_control_data = wifi_ctrl;
     wifi_set_power(0, 0);
     wifi_set_power(0, 0);
@@ -181,14 +193,42 @@ static int wifi_remove(struct platform_device *pdev)
     wifi_set_carddetect(0);
     return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+static int wifi_suspend(struct device *dev)
+{
+    return 0;
+}
+
+static int wifi_resume(struct device *dev)
+{
+    return 0;
+}
+
+static const struct dev_pm_ops wifi_pm_ops = {
+    .suspend = wifi_suspend,
+    .resume = wifi_resume,
+};
+
+static struct platform_driver wifi_driver = {
+    .probe = wifi_probe,
+    .remove = wifi_remove,
+    .driver = {
+        .name = "ssv_wlan",
+        .pm = &wifi_pm_ops,
+    }
+};
+#else
 static int wifi_suspend(struct platform_device *pdev, pm_message_t state)
 {
     return 0;
 }
+
 static int wifi_resume(struct platform_device *pdev)
 {
     return 0;
 }
+
 static struct platform_driver wifi_driver = {
     .probe = wifi_probe,
     .remove = wifi_remove,
@@ -198,6 +238,8 @@ static struct platform_driver wifi_driver = {
         .name = "ssv_wlan",
     }
 };
+#endif
+
 extern int tu_ssvdevice_init(void);
 extern void tu_ssvdevice_exit(void);
 #ifdef CONFIG_SSV_SUPPORT_AES_ASM
@@ -206,24 +248,60 @@ extern void aes_fini(void);
 extern int sha1_mod_init(void);
 extern void sha1_mod_fini(void);
 #endif
+
 int initWlan(void)
 {
     int ret=0;
+    int dev_ret = 0;
+    int drv_ret = 0;
+    
     sema_init(&wifi_control_sem, 0);
 #ifdef CONFIG_SSV_SUPPORT_AES_ASM
     sha1_mod_init();
     aes_init();
 #endif
-    platform_device_register(&ssv_wifi_device);
-    platform_driver_register(&wifi_driver);
+    
+    /* Register platform device first */
+    dev_ret = platform_device_register(&ssv_wifi_device);
+    if (dev_ret) {
+        printk(KERN_ALERT "%s: platform_device_register failed: %d\n", __FUNCTION__, dev_ret);
+        ret = dev_ret;
+        goto out;
+    }
+    
+    /* Then register the driver */
+    drv_ret = platform_driver_register(&wifi_driver);
+    if (drv_ret) {
+        printk(KERN_ALERT "%s: platform_driver_register failed: %d\n", __FUNCTION__, drv_ret);
+        platform_device_unregister(&ssv_wifi_device);
+        ret = drv_ret;
+        goto out;
+    }
+    
     g_wifidev_registered = 1;
+    
+    /* Wait for probe to complete */
     if (down_timeout(&wifi_control_sem, msecs_to_jiffies(1000)) != 0) {
         ret = -EINVAL;
         printk(KERN_ALERT "%s: platform_driver_register timeout\n", __FUNCTION__);
+        platform_driver_unregister(&wifi_driver);
+        platform_device_unregister(&ssv_wifi_device);
+        g_wifidev_registered = 0;
+        goto out;
     }
+    
     ret = tu_ssvdevice_init();
+    if (ret) {
+        printk(KERN_ALERT "%s: tu_ssvdevice_init failed: %d\n", __FUNCTION__, ret);
+        platform_driver_unregister(&wifi_driver);
+        platform_device_unregister(&ssv_wifi_device);
+        g_wifidev_registered = 0;
+    }
+
+out:
     return ret;
 }
+
 void exitWlan(void)
 {
     if (g_wifidev_registered) {
@@ -238,14 +316,29 @@ void exitWlan(void)
     }
     return;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
 static int tu_generic_wifi_init_module(void)
 {
     return initWlan();
 }
+
 static void tu_generic_wifi_exit_module(void)
 {
     exitWlan();
 }
+#else
+static int __init tu_generic_wifi_init_module(void)
+{
+    return initWlan();
+}
+
+static void __exit tu_generic_wifi_exit_module(void)
+{
+    exitWlan();
+}
+#endif
+
 EXPORT_SYMBOL(tu_generic_wifi_init_module);
 EXPORT_SYMBOL(tu_generic_wifi_exit_module);
 module_init(tu_generic_wifi_init_module);
