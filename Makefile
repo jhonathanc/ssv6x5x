@@ -1,8 +1,18 @@
 KMODULE_NAME = ssv6x5x
 
-KBUILD_TOP := /root/ssv6x5x
+KBUILD_TOP := $(or $(src),$(PWD))
 ifeq ($(MAKELEVEL),0)
 KBUILD_TOP := .
+endif
+
+ifeq ($(ARCH),aarch64)
+override ARCH := arm64
+endif
+ifeq ($(ARCH),armv7l)
+override ARCH := arm
+endif
+ifeq ($(ARCH),x86_64)
+override ARCH := x86
 endif
 
 include $(KBUILD_TOP)/$(KMODULE_NAME).cfg
@@ -119,7 +129,7 @@ obj-$(CONFIG_SSV6X5X) += $(KMODULE_NAME).o
 all: modules
 	
 modules:
-	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KSRC) M=$(shell pwd) modules
+	$(MAKE) $(if $(ARCH),ARCH=$(ARCH)) $(if $(CROSS_COMPILE),CROSS_COMPILE=$(CROSS_COMPILE)) -C $(KSRC) M=$(shell pwd) modules
 
 strip:
 	$(CROSS_COMPILE)strip $(MODULE_NAME).ko --strip-unneeded

@@ -4588,7 +4588,7 @@ out:
             queue_work(sc->config_wq, &sc->set_ampdu_rx_del_work);
             break;
         case IEEE80211_AMPDU_TX_START:
-            dev_dbg(sc->dev, KERN_ERR "AMPDU_TX_START %02X:%02X:%02X:%02X:%02X:%02X %d.\n",
+            dev_dbg(sc->dev, "AMPDU_TX_START %02X:%02X:%02X:%02X:%02X:%02X %d.\n",
                    sta->addr[0], sta->addr[1], sta->addr[2], sta->addr[3],
                    sta->addr[4], sta->addr[5], tid);
             sta_priv = (struct ssv_sta_priv_data *)sta->drv_priv;
@@ -4603,14 +4603,14 @@ out:
         case IEEE80211_AMPDU_TX_STOP_FLUSH:
         case IEEE80211_AMPDU_TX_STOP_FLUSH_CONT:
 #endif
-            dev_dbg(sc->dev, KERN_ERR "AMPDU_TX_STOP %02X:%02X:%02X:%02X:%02X:%02X %d.\n",
+            dev_dbg(sc->dev, "AMPDU_TX_STOP %02X:%02X:%02X:%02X:%02X:%02X %d.\n",
                    sta->addr[0], sta->addr[1], sta->addr[2], sta->addr[3],
                    sta->addr[4], sta->addr[5], tid);
             ssv6200_ampdu_tx_stop(tid, sta, hw);
             ieee80211_stop_tx_ba_cb_irqsafe(vif, sta->addr, tid);
             break;
         case IEEE80211_AMPDU_TX_OPERATIONAL:
-            dev_dbg(sc->dev, KERN_ERR "AMPDU_TX_OPERATIONAL %02X:%02X:%02X:%02X:%02X:%02X %d.\n",
+            dev_dbg(sc->dev, "AMPDU_TX_OPERATIONAL %02X:%02X:%02X:%02X:%02X:%02X %d.\n",
                    sta->addr[0], sta->addr[1], sta->addr[2], sta->addr[3],
                    sta->addr[4], sta->addr[5], tid);
             ssv6200_ampdu_tx_operation(tid, sta, hw, buf_size);
@@ -4658,6 +4658,9 @@ out:
         .remove_interface = ssv6200_remove_interface,
         .config = ssv6200_config,
         .configure_filter = ssv6200_config_filter,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,0,0)
+        .wake_tx_queue = ieee80211_handle_wake_tx_queue,
+#endif
         .bss_info_changed = ssv6200_bss_info_changed,
         .sta_add = ssv6200_sta_add,
         .sta_remove = ssv6200_sta_remove,
@@ -4675,6 +4678,11 @@ out:
 #ifdef CONFIG_PM
         .suspend = ssv6xxx_suspend,
         .resume = ssv6xxx_resume,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
+        .add_chanctx = ieee80211_emulate_add_chanctx,
+        .remove_chanctx = ieee80211_emulate_remove_chanctx,
+        .change_chanctx = ieee80211_emulate_change_chanctx,
 #endif
     };
 #ifdef CONFIG_PM

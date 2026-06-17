@@ -1330,10 +1330,51 @@ inline void ssv6xxx_deinit_hw(struct ssv_softc *sc)
     SSV_SET_ON3_ENABLE(sc->sh, false);
 }
 #ifdef SSV_SUPPORT_HAL
+static int ssv6xxx_validate_hal_ops(struct ssv_hw *sh)
+{
+#define SSV_REQUIRE_HAL_OP(_op) \
+    do { \
+        if (!sh->hal_ops._op) { \
+            dev_err(sh->sc->dev, \
+                    "missing HAL operation %s; chip/register detection incomplete\n", \
+                    #_op); \
+            return -ENODEV; \
+        } \
+    } while (0)
+
+    SSV_REQUIRE_HAL_OP(set_on3_enable);
+    SSV_REQUIRE_HAL_OP(wait_usb_rom_ready);
+    SSV_REQUIRE_HAL_OP(get_tx_desc_size);
+    SSV_REQUIRE_HAL_OP(get_rx_desc_size);
+    SSV_REQUIRE_HAL_OP(init_tx_cfg);
+    SSV_REQUIRE_HAL_OP(init_rx_cfg);
+    SSV_REQUIRE_HAL_OP(init_gpio_cfg);
+    SSV_REQUIRE_HAL_OP(init_iqk);
+    SSV_REQUIRE_HAL_OP(chg_ipd_phyinfo);
+    SSV_REQUIRE_HAL_OP(init_ch_cfg);
+    SSV_REQUIRE_HAL_OP(load_phy_table);
+    SSV_REQUIRE_HAL_OP(load_rf_table);
+    SSV_REQUIRE_HAL_OP(update_cfg_hw_patch);
+    SSV_REQUIRE_HAL_OP(update_hw_config);
+    SSV_REQUIRE_HAL_OP(set_pll_phy_rf);
+    SSV_REQUIRE_HAL_OP(chg_pad_setting);
+    SSV_REQUIRE_HAL_OP(chg_clk_src);
+    SSV_REQUIRE_HAL_OP(update_efuse_setting);
+    SSV_REQUIRE_HAL_OP(update_product_hw_setting);
+    SSV_REQUIRE_HAL_OP(set_channel);
+    SSV_REQUIRE_HAL_OP(set_phy_mode);
+
+#undef SSV_REQUIRE_HAL_OP
+    return 0;
+}
+
 static int tu_ssv6xxx_init_hw(struct ssv_hw *sh)
 {
     int ret = 0;
     ssv_cabrio_reg *rf_tbl, *phy_tbl ;
+    ret = ssv6xxx_validate_hal_ops(sh);
+    if (ret)
+        return ret;
     SSV_SET_ON3_ENABLE(sh, true);
     HAL_WAIT_USB_ROM_READY(sh);
     sh->tx_desc_len = HAL_GET_TX_DESC_SIZE(sh);
@@ -2040,8 +2081,12 @@ int tu_ssv6xxx_dev_probe(struct platform_device *pdev)
     }
     dev_dbg(&pdev->dev, "%s(): SSV6X5X device \"%s\" found !", __FUNCTION__, pdev->name);
 #ifdef SSV_MAC80211
+    dev_info(&pdev->dev, "allocating ieee80211_hw priv=%zu name=icomm\n",
+            sizeof(struct ssv_softc));
     hw = ieee80211_alloc_hw_nm(sizeof(struct ssv_softc), &ssv6200_ops,"icomm");
 #else
+    dev_info(&pdev->dev, "allocating ieee80211_hw priv=%zu\n",
+            sizeof(struct ssv_softc));
     hw = ieee80211_alloc_hw(sizeof(struct ssv_softc), &ssv6200_ops);
 #endif
     if (hw == NULL) {
