@@ -1618,33 +1618,38 @@ static int ssv6xxx_sdio_power_off(struct ssv6xxx_platform_data * pdata, struct s
 }
 static void _read_chip_id (struct ssv6xxx_sdio_glue *glue)
 {
-    u32 regval;
+    static const u32 chip_id_regs[] = {
+        ADR_CHIP_ID_3,
+        ADR_CHIP_ID_2,
+        ADR_CHIP_ID_1,
+        ADR_CHIP_ID_0,
+    };
+    u32 regval, value;
     int ret;
-    u8 _chip_id[SSV6XXX_CHIP_ID_LENGTH];
+    u8 _chip_id[SSV6XXX_CHIP_ID_LENGTH] = {0};
     u8 *c = _chip_id;
-    int i = 0;
-    ret = __ssv6xxx_sdio_read_reg(glue, ADR_CHIP_ID_3, &regval);
-    *((u32 *)&_chip_id[0]) = __be32_to_cpu(regval);
-    if (ret == 0)
-        ret = __ssv6xxx_sdio_read_reg(glue, ADR_CHIP_ID_2, &regval);
-    *((u32 *)&_chip_id[4]) = __be32_to_cpu(regval);
-    if (ret == 0)
-        ret = __ssv6xxx_sdio_read_reg(glue, ADR_CHIP_ID_1, &regval);
-    *((u32 *)&_chip_id[8]) = __be32_to_cpu(regval);
-    if (ret == 0)
-        ret = __ssv6xxx_sdio_read_reg(glue, ADR_CHIP_ID_0, &regval);
-    *((u32 *)&_chip_id[12]) = __be32_to_cpu(regval);
-    _chip_id[12+sizeof(u32)] = 0;
-    while (*c == 0) {
-        i++;
-        c++;
-        if (i == 16) {
-            c = _chip_id;
-            break;
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(chip_id_regs); i++) {
+        ret = __ssv6xxx_sdio_safe_read_reg(glue, chip_id_regs[i], &regval);
+        if (ret) {
+            dev_err(glue->dev,
+                    "Failed to read chip ID register 0x%08x: %d\n",
+                    chip_id_regs[i], ret);
+            glue->tmp_data.chip_id[0] = 0;
+            return;
         }
+
+        value = __be32_to_cpu(regval);
+        memcpy(&_chip_id[i * sizeof(value)], &value, sizeof(value));
     }
-    if (*c != 0) {
-        strncpy(glue->tmp_data.chip_id, c, SSV6XXX_CHIP_ID_LENGTH);
+
+    while (c < &_chip_id[16] && *c == 0)
+        c++;
+
+    if (c < &_chip_id[16]) {
+        memset(glue->tmp_data.chip_id, 0, sizeof(glue->tmp_data.chip_id));
+        strncpy(glue->tmp_data.chip_id, c, SSV6XXX_CHIP_ID_LENGTH - 1);
         dev_info(glue->dev, "CHIP ID: %s \n", glue->tmp_data.chip_id);
         strncpy(glue->tmp_data.short_chip_id, c, SSV6XXX_CHIP_ID_SHORT_LENGTH);
         glue->tmp_data.short_chip_id[SSV6XXX_CHIP_ID_SHORT_LENGTH] = 0;
