@@ -18,6 +18,12 @@ endif
 include $(KBUILD_TOP)/$(KMODULE_NAME).cfg
 include $(KBUILD_TOP)/platform-config.mak
 
+# Linux 6.x no longer exposes the legacy blkcipher/cipher APIs used by the
+# vendor local crypto implementation. Use the kernel/mac80211 crypto path.
+ifeq ($(shell if [ 0$(VERSION) -ge 6 ]; then echo y; fi),y)
+SSV_USE_LOCAL_CRYPTO = 0
+endif
+
 # Generate version strings
 # GEN_VER := $(shell cd $(KBUILD_TOP); ./ver_info.pl include/ssv_version.h)
 # Generate include/ssv_conf_parser.h

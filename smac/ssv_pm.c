@@ -16,17 +16,21 @@
 #include <ssv6200.h>
 #include "dev.h"
 #include "init.h"
+#include "ssv_pm.h"
 #ifdef CONFIG_SSV_SUPPORT_ANDROID
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(CONFIG_HAS_WAKELOCK) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
 #include <linux/wakelock.h>
 #endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
-#elif LINUX_VERSION_CODE > KERNEL_VERSION(3, 4, 0)
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(3, 4, 0) && \
+      LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 #include <linux/notifier.h>
 #include <linux/fb.h>
 #endif
-#if defined(CONFIG_HAS_EARLYSUSPEND) || (LINUX_VERSION_CODE > KERNEL_VERSION(3, 4, 0))
+#if defined(CONFIG_HAS_EARLYSUSPEND) || \
+    (LINUX_VERSION_CODE > KERNEL_VERSION(3, 4, 0) && \
+     LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
 #ifdef CONFIG_HAS_EARLYSUSPEND
 void ssv6xxx_early_suspend(struct early_suspend *h)
 #else
@@ -139,41 +143,43 @@ struct notifier_block ssv_wlan_fb_notifier = {
 #endif
 void ssv_wakelock_init(struct ssv_softc *sc)
 {
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(CONFIG_HAS_WAKELOCK) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
     wake_lock_init(&sc->ssv_wake_lock_, WAKE_LOCK_SUSPEND, "ssv6051");
 #endif
 #ifndef CONFIG_HAS_EARLYSUSPEND
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) && \
+    LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
     fb_register_client(&ssv_wlan_fb_notifier);
 #endif
 #endif
 }
 void ssv_wakelock_destroy(struct ssv_softc *sc)
 {
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(CONFIG_HAS_WAKELOCK) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
     wake_lock_destroy(&sc->ssv_wake_lock_);
 #endif
 #ifndef CONFIG_HAS_EARLYSUSPEND
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) && \
+    LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
     fb_unregister_client(&ssv_wlan_fb_notifier);
 #endif
 #endif
 }
 void ssv_wake_lock(struct ssv_softc *sc)
 {
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(CONFIG_HAS_WAKELOCK) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
     wake_lock(&sc->ssv_wake_lock_);
 #endif
 }
 void ssv_wake_timeout(struct ssv_softc *sc, int secs)
 {
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(CONFIG_HAS_WAKELOCK) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
     wake_lock_timeout(&sc->ssv_wake_lock_,secs*HZ);
 #endif
 }
 void ssv_wake_unlock(struct ssv_softc *sc)
 {
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(CONFIG_HAS_WAKELOCK) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
     wake_unlock(&sc->ssv_wake_lock_);
 #endif
 }

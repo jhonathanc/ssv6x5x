@@ -18,8 +18,11 @@
 #include <linux/version.h>
 #include <linux/device.h>
 #include <linux/interrupt.h>
-#ifdef CONFIG_SSV_SUPPORT_ANDROID
+#if defined(CONFIG_SSV_SUPPORT_ANDROID) && defined(CONFIG_HAS_WAKELOCK) && \
+    LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
 #include <linux/wakelock.h>
+#endif
+#ifdef CONFIG_SSV_SUPPORT_ANDROID
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
@@ -909,7 +912,7 @@ struct ssv_softc {
 #ifdef CONFIG_HAS_EARLYSUSPEND
     struct early_suspend early_suspend;
 #endif
-#ifdef CONFIG_HAS_WAKELOCK
+#if defined(CONFIG_HAS_WAKELOCK) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
     struct wake_lock ssv_wake_lock_;
 #endif
 #endif

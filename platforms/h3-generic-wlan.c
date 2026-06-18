@@ -13,6 +13,59 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+
+#include <linux/delay.h>
+#include <linux/module.h>
+#include <linux/printk.h>
+
+extern int tu_ssvdevice_init(void);
+extern void tu_ssvdevice_exit(void);
+
+static int g_wifidev_registered;
+
+int initWlan(void)
+{
+    int ret;
+
+    msleep(150);
+    ret = tu_ssvdevice_init();
+    if (!ret)
+        g_wifidev_registered = 1;
+
+    return ret;
+}
+
+void exitWlan(void)
+{
+    if (g_wifidev_registered) {
+        tu_ssvdevice_exit();
+        g_wifidev_registered = 0;
+    }
+}
+
+int tu_generic_wifi_init_module(void)
+{
+    pr_info("%s\n", __func__);
+    return initWlan();
+}
+
+void tu_generic_wifi_exit_module(void)
+{
+    msleep(100);
+    exitWlan();
+}
+
+EXPORT_SYMBOL(tu_generic_wifi_init_module);
+EXPORT_SYMBOL(tu_generic_wifi_exit_module);
+module_init(tu_generic_wifi_init_module);
+module_exit(tu_generic_wifi_exit_module);
+MODULE_LICENSE("Dual BSD/GPL");
+
+#else
+
 #include <linux/irq.h>
 #include <linux/version.h>
 #include <linux/module.h>
@@ -344,3 +397,4 @@ EXPORT_SYMBOL(tu_generic_wifi_exit_module);
 module_init(tu_generic_wifi_init_module);
 module_exit(tu_generic_wifi_exit_module);
 MODULE_LICENSE("Dual BSD/GPL");
+#endif
